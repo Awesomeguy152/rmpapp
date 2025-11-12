@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">Min</string>
+    <string name="screen_login">login</string>
+    <string name="screen_register">Register</string>
+    <string name="screen_forgotpass">Password Recovery</string>
+    <string name="screen_chats">Chats</string>
+    <string name="screen_profile">Profile</string>
+    <string name="screen_chat">Chat with %s</string>
 </resources>
