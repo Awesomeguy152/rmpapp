@@ -7,63 +7,53 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.ShapeDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.ModifierLocalBeyondBoundsLayout
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.navigation3.runtime.NavBackStack
 import com.nano.min.R
 import com.nano.min.navigation.LoginRoute
-import com.nano.min.navigation.Route
+import com.nano.min.network.ApiClient
 import com.nano.min.ui.theme.AppButton
 import com.nano.min.ui.theme.KeyboardPassword
 import com.nano.min.ui.theme.LargeTitle
 import com.nano.min.ui.theme.MinTheme
 import com.nano.min.ui.theme.Typography
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.math.log
-
-suspend fun login(login: String, password: String): Boolean {
-    delay(1200L) // Simulate network delay
-    return true
-}
+import com.nano.min.network.AuthService
+import com.nano.min.network.DeviceTokenStorage
 
 @Composable
 fun LoginScreen(
-    backStack: SnapshotStateList<Route>,
     screenContext: LoginRoute,
-    onLoginSuccess: () -> Unit = {}
+    api: ApiClient,
+    navigateRegister: () -> Unit = {},
+    navigateForgotPassword: () -> Unit = {},
+    onLoginSuccess: () -> Unit
 ) {
-
     val scope = rememberCoroutineScope { Dispatchers.IO }
+    val authService = AuthService(api)
 
     var loginString by remember { mutableStateOf("") }
     var passwordString by remember { mutableStateOf("") }
 
     var isLoading by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
 
     Column(
         modifier = Modifier
@@ -90,7 +80,7 @@ fun LoginScreen(
                     .fillMaxWidth()
             ) {
                 Text(
-                    text = stringResource(R.string.login),
+                    text = stringResource(R.string.email),
                     style = Typography.bodyLarge,
                     modifier = Modifier.padding(top = 24.dp, bottom = 8.dp)
                 )
@@ -120,7 +110,13 @@ fun LoginScreen(
                     onClick = {
                         scope.launch {
                             isLoading = true
-                            val success = login(loginString, passwordString)
+                            val success = try {
+                                authService.login(loginString, passwordString)
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                                error = e.localizedMessage?: e.message?: "Unknown error"
+                                false
+                            }
                             isLoading = false
                             if (success) {
                                 onLoginSuccess()
@@ -132,6 +128,14 @@ fun LoginScreen(
                         .padding(bottom = 24.dp),
                     enabled = (loginString.isNotEmpty() && passwordString.isNotEmpty()) && !isLoading
                 )
+                if (error != null) {
+                    Text(
+                        text = error!!,
+                        style = Typography.bodyMedium,
+                        color = Color.Red,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                }
             }
         }
     }
@@ -140,8 +144,8 @@ fun LoginScreen(
 @Preview(showSystemUi = false)
 @Composable
 private fun Preview() {
-    val backStack: SnapshotStateList<Route> = remember { mutableStateListOf(LoginRoute) }
+    val api = ApiClient(tokenStorage = DeviceTokenStorage(LocalContext.current))
     MinTheme {
-        LoginScreen(backStack, LoginRoute)
+        LoginScreen(LoginRoute, api) {}
     }
 }

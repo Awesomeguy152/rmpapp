@@ -9,7 +9,8 @@
     <string name="screen_chat">Диалог с %s</string>
     <string name="password">Пароль</string>
     <string name="login">Войти</string>
-    <string name="register">Регистрация</string>
+    <string name="register">Зарегистрироваться</string>
     <string name="forgotpass">Забыли пароль?</string>
     <string name="register_rationale">Нет аккаунта? Зарегистрироваться</string>
+    <string name="screen_settings">Настройки</string>
 </resources>

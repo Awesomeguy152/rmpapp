@@ -13,4 +13,5 @@
     <string name="register">Register</string>
     <string name="forgotpass">Forgot password?</string>
     <string name="register_rationale">No account? Register</string>
+    <string name="screen_settings">Settings</string>
 </resources>

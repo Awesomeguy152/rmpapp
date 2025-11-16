@@ -1,5 +1,6 @@
 package com.nano.min
 
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -28,6 +29,6 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MinApp() {
     AppNavigationRoot(
-        modifier = Modifier.padding(8.dp)
+        modifier = Modifier.padding(8.dp),
     )
 }
