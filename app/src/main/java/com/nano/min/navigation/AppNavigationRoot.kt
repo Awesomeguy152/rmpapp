@@ -5,11 +5,8 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
-import com.nano.min.network.ApiClient
-import com.nano.min.network.DeviceTokenStorage
 import com.nano.min.screens.LoginScreen
 import com.nano.min.screens.RegisterScreen
 
@@ -24,10 +21,6 @@ fun AppNavigationRoot(
         backStack.add(AppRoute())
     }
 
-    val apiClient = ApiClient(
-        tokenStorage = DeviceTokenStorage(LocalContext.current)
-    )
-
     NavDisplay(
         modifier = modifier,
         backStack = backStack,
@@ -35,14 +28,14 @@ fun AppNavigationRoot(
         entryProvider = entryProvider {
             entry<LoginRoute> { route ->
                 LoginScreen(
-                    route, apiClient,
+                    route,
                     navigateRegister = { backStack.add(RegisterRoute) },
                     navigateForgotPassword = {},
                     onLoginSuccess = { navigateToApp() }
                 )
             }
             entry<RegisterRoute> { route ->
-                RegisterScreen(route, apiClient,
+                RegisterScreen(route,
                     navigateLogin = { backStack.add(LoginRoute) },
                     onRegisterSuccess = { navigateToApp() }
                 )
