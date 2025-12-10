@@ -55,17 +55,18 @@ fun RegisterScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(Modifier.padding(top = 80.dp))
+
         Image(
             painterResource(R.drawable.logo_no_back),
-            "app logo",
-            modifier = Modifier
-                .size(140.dp)
-                .align(Alignment.CenterHorizontally)
+            contentDescription = "app logo",
+            modifier = Modifier.size(140.dp)
         )
+
         LargeTitle(
             stringResource(R.string.screen_register),
             modifier = Modifier.padding(top = 24.dp, bottom = 64.dp)
         )
+
         OutlinedCard(shape = ShapeDefaults.Medium, modifier = Modifier.fillMaxWidth()) {
             Column(
                 modifier = Modifier
@@ -82,6 +83,7 @@ fun RegisterScreen(
                     onValueChange = viewModel::onEmailChange,
                     singleLine = true
                 )
+
                 Text(
                     text = stringResource(R.string.password),
                     style = Typography.bodyLarge,
@@ -93,15 +95,18 @@ fun RegisterScreen(
                     singleLine = true,
                     keyboardOptions = KeyboardPassword
                 )
+
                 Spacer(Modifier.padding(vertical = 16.dp))
+
                 AppButton(
                     text = stringResource(R.string.register),
                     onClick = viewModel::register,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 24.dp),
-                    enabled = (uiState.email.isNotEmpty() && uiState.password.isNotEmpty()) && !uiState.isLoading
+                    enabled = uiState.email.isNotEmpty() && uiState.password.isNotEmpty() && !uiState.isLoading
                 )
+
                 if (uiState.error != null) {
                     Text(
                         text = uiState.error!!,
@@ -115,10 +120,84 @@ fun RegisterScreen(
     }
 }
 
-@Preview(showSystemUi = false)
+
+@Preview(showBackground = true)
 @Composable
-private fun Preview() {
+fun RegisterScreenPreview() {
     MinTheme {
-        // Preview without ViewModel injection
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(Modifier.padding(top = 80.dp))
+
+            Image(
+                painterResource(R.drawable.logo_no_back),
+                contentDescription = "logo",
+                modifier = Modifier.size(140.dp)
+            )
+
+            LargeTitle(
+                text = "Register",
+                modifier = Modifier.padding(top = 24.dp, bottom = 64.dp)
+            )
+
+            OutlinedCard(
+                shape = ShapeDefaults.Medium,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(horizontal = 32.dp)
+                        .fillMaxWidth()
+                ) {
+
+                    Text(
+                        text = "Email",
+                        style = Typography.bodyLarge,
+                        modifier = Modifier.padding(top = 24.dp, bottom = 8.dp)
+                    )
+
+                    OutlinedTextField(
+                        value = "example@email.com",
+                        onValueChange = {},
+                        singleLine = true
+                    )
+
+                    Text(
+                        text = "Password",
+                        style = Typography.bodyLarge,
+                        modifier = Modifier.padding(top = 24.dp, bottom = 8.dp)
+                    )
+
+                    OutlinedTextField(
+                        value = "••••••••",
+                        onValueChange = {},
+                        singleLine = true,
+                        keyboardOptions = KeyboardPassword
+                    )
+
+                    Spacer(Modifier.padding(vertical = 16.dp))
+
+                    AppButton(
+                        text = "Register",
+                        onClick = {},
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 24.dp),
+                        enabled = true
+                    )
+
+                    Text(
+                        text = "Email or password is invalid",
+                        style = Typography.bodyMedium,
+                        color = Color.Red,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                }
+            }
+        }
     }
 }

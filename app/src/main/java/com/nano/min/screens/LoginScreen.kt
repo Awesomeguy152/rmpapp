@@ -116,10 +116,82 @@ fun LoginScreen(
     }
 }
 
-@Preview(showSystemUi = false)
+@Preview(showBackground = true, showSystemUi = true)
 @Composable
-private fun Preview() {
+private fun LoginScreen() {
     MinTheme {
-        // Preview without ViewModel injection
+        LoginScreenContentPreview()
+    }
+}
+
+
+@Composable
+private fun LoginScreenContentPreview() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(Modifier.padding(top = 80.dp))
+
+        Image(
+            painter = painterResource(R.drawable.logo_no_back),
+            contentDescription = "logo",
+            modifier = Modifier.size(140.dp)
+        )
+
+        LargeTitle(
+            text = "Login",
+            modifier = Modifier.padding(top = 24.dp, bottom = 64.dp)
+        )
+
+        OutlinedCard(
+            shape = ShapeDefaults.Medium,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(horizontal = 32.dp)
+                    .fillMaxWidth()
+            ) {
+
+                Text(
+                    text = "Email",
+                    style = Typography.bodyLarge,
+                    modifier = Modifier.padding(top = 24.dp, bottom = 8.dp)
+                )
+
+                OutlinedTextField(
+                    value = "",
+                    onValueChange = {},
+                    singleLine = true
+                )
+
+                Text(
+                    text = "Password",
+                    style = Typography.bodyLarge,
+                    modifier = Modifier.padding(top = 24.dp, bottom = 8.dp)
+                )
+
+                OutlinedTextField(
+                    value = "",
+                    onValueChange = {},
+                    singleLine = true,
+                    keyboardOptions = KeyboardPassword
+                )
+
+                Spacer(Modifier.padding(vertical = 16.dp))
+
+                AppButton(
+                    text = "Login",
+                    onClick = {},
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 24.dp),
+                    enabled = true
+                )
+            }
+        }
     }
 }

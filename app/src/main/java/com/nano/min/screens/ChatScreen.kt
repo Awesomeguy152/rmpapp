@@ -2,6 +2,7 @@ package com.nano.min.screens
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -111,22 +112,53 @@ fun ChatScreen(
 
 @Composable
 fun MessageItem(message: Message) {
+    var showMenu by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
         horizontalArrangement = if (message.isSentByUser) Arrangement.End else Arrangement.Start
     ) {
-        Text(
-            text = message.text,
-            color = if (message.isSentByUser) Color.White else Color.Black,
-            modifier = Modifier
-                .background(
-                    color = if (message.isSentByUser) Color(0xFF3B82F6) else Color(0xFFE5E5EA),
-                    shape = MaterialTheme.shapes.medium
-                )
-                .padding(12.dp)
-        )
+        Box {
+            Text(
+                text = message.text,
+                color = if (message.isSentByUser) Color.White else Color.Black,
+                modifier = Modifier
+                    .background(
+                        color = if (message.isSentByUser) Color(0xFF3B82F6) else Color(0xFFE5E5EA),
+                        shape = MaterialTheme.shapes.medium
+                    )
+                    .padding(12.dp)
+                    .let {
+                        if (message.isSentByUser) {
+                            it.clickable { showMenu = true }
+                        } else {
+                            it
+                        }
+                    }
+            )
+
+            if (message.isSentByUser) {
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Удалить") },
+                        onClick = { showMenu = false }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Переписать") },
+                        onClick = { showMenu = false }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Запланировать") },
+                        onClick = { showMenu = false }
+                    )
+                }
+            }
+        }
     }
 }
 
