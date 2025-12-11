@@ -2,6 +2,7 @@ package com.nano.min.di
 
 import com.nano.min.network.ApiClient
 import com.nano.min.network.AuthService
+import com.nano.min.network.ChatService
 import com.nano.min.network.DeviceTokenStorage
 import com.nano.min.network.TokenStorage
 import org.koin.android.ext.koin.androidContext
@@ -16,4 +17,7 @@ val dataModule = module {
     
     // AuthService (Repository layer)
     single { AuthService(get()) }
+
+    // ChatService
+    single { ChatService(get()) }
 }

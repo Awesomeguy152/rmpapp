@@ -5,10 +5,7 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import kotlin.random.Random
-import kotlin.random.nextLong
 
 class AuthService(val client: ApiClient) {
 
@@ -29,7 +26,7 @@ class AuthService(val client: ApiClient) {
         }
         if (response.status == HttpStatusCode.OK) {
             val body: LoginResponse = response.body()
-            val token = body.accessToken
+            val token = body.token
             if (!token.isNullOrBlank()) {
                 client.tokenStorage.setToken(token)
                 return@withContext true
@@ -46,13 +43,7 @@ class AuthService(val client: ApiClient) {
         return@withContext null
     }
 
-    suspend fun netLag() {
-        val delayTime = Random.nextLong(60L..300L)
-        delay(delayTime)
-    }
-
-    suspend fun getChats(userId: Int) {
-        netLag()
-
+    fun logout() {
+        client.tokenStorage.setToken(null)
     }
 }

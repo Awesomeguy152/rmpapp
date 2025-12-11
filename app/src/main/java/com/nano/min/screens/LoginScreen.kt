@@ -7,10 +7,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.ShapeDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -73,10 +75,15 @@ fun LoginScreen(
                     .padding(horizontal = 32.dp)
                     .fillMaxWidth()
             ) {
+                if (uiState.isLoading) {
+                    LinearProgressIndicator(modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 24.dp))
+                }
                 Text(
                     text = stringResource(R.string.email),
                     style = Typography.bodyLarge,
-                    modifier = Modifier.padding(top = 24.dp, bottom = 8.dp)
+                    modifier = Modifier.padding(top = if (uiState.isLoading) 16.dp else 24.dp, bottom = 8.dp)
                 )
                 OutlinedTextField(
                     value = uiState.email,
@@ -103,6 +110,13 @@ fun LoginScreen(
                         .padding(bottom = 24.dp),
                     enabled = (uiState.email.isNotEmpty() && uiState.password.isNotEmpty()) && !uiState.isLoading
                 )
+                TextButton(
+                    onClick = navigateRegister,
+                    enabled = !uiState.isLoading,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                ) {
+                    Text(text = stringResource(R.string.register_rationale))
+                }
                 if (uiState.error != null) {
                     Text(
                         text = uiState.error!!,

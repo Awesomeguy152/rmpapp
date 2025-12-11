@@ -16,7 +16,7 @@ data class LoginUiState(
     val email: String = "",
     val password: String = "",
     val isLoading: Boolean = false,
-    val error: String? = "",
+    val error: String? = null,
     val isLoginSuccessful: Boolean = false
 )
 
@@ -39,7 +39,7 @@ class LoginViewModel(
     fun login() {
         val currentState = _uiState.value
         if (currentState.email.isEmpty() || currentState.password.isEmpty()) {
-            _uiState.value = currentState.copy(error = "")
+            _uiState.value = currentState.copy(error = getString(R.string.login_empty_fields))
             return
         }
 
@@ -48,7 +48,7 @@ class LoginViewModel(
             try {
                 val success = authService.login(currentState.email, currentState.password)
                 _uiState.value = if (success) {
-                    currentState.copy(isLoading = false, isLoginSuccessful = true)
+                    currentState.copy(isLoading = false, isLoginSuccessful = true, error = null)
                 } else {
                     currentState.copy(isLoading = false, error = getString(R.string.login_failed))
                 }
