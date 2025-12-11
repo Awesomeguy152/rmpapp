@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: appdb
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d appdb"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    ports:
+      - "1025:1025"   # SMTP (локально)
+      - "8025:8025"   # UI: http://localhost:8025
+
+  app:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+    environment:
+      - DB_URL=jdbc:postgresql://postgres:5432/appdb
+      - DB_USER=app
+      - DB_PASSWORD=app
+      - JWT_SECRET=please-change-me
+      - JWT_ISSUER=ktor.io
+      - JWT_AUDIENCE=ktor-audience
+      - SEED_SAMPLE_DATA=true
+      - ADMIN_REGISTRATION_SECRET=super-secret
+      - PORT=8080
+      - SMTP_HOST=mailhog
+      - SMTP_PORT=1025
+      - SMTP_USERNAME=
+      - SMTP_PASSWORD=
+      - SMTP_FROM=no-reply@yourapp.local
+      - SMTP_SECURE=false
+    ports:
+      - "8080:8080"
+
+volumes:
+  pgdata:
