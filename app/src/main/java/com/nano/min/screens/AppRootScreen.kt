@@ -1,8 +1,10 @@
 package com.nano.min.screens
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -31,9 +33,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -89,6 +93,7 @@ import com.nano.min.viewmodel.MessageItem
 import com.nano.min.viewmodel.ContactSuggestion
 import com.nano.min.viewmodel.MemberInfo
 import com.nano.min.network.ConversationType
+import com.nano.min.network.MessageStatus
 import org.koin.androidx.compose.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -262,6 +267,8 @@ fun AppRootScreen(
 							currentUserId = conversationState.profileId,
 							onMessageChange = viewModel::updateMessageInput,
 							onSend = { viewModel.sendMessage() },
+							onToggleReaction = { messageId, emoji -> viewModel.toggleReaction(messageId, emoji) },
+							availableReactions = viewModel.availableReactions,
 							onUpdateTopic = viewModel::updateCurrentConversationTopic,
 							onAddMembers = viewModel::addMembersToCurrentConversation,
 							onRemoveMember = viewModel::removeMemberFromCurrentConversation,
@@ -301,6 +308,8 @@ fun AppRootScreen(
 							currentUserId = conversationState.profileId,
 							onMessageChange = viewModel::updateMessageInput,
 							onSend = { viewModel.sendMessage() },
+							onToggleReaction = { messageId, emoji -> viewModel.toggleReaction(messageId, emoji) },
+							availableReactions = viewModel.availableReactions,
 							onUpdateTopic = viewModel::updateCurrentConversationTopic,
 							onAddMembers = viewModel::addMembersToCurrentConversation,
 							onRemoveMember = viewModel::removeMemberFromCurrentConversation,
@@ -753,6 +762,8 @@ private fun ConversationDetailPanel(
 	currentUserId: String?,
 	onMessageChange: (String) -> Unit,
 	onSend: () -> Unit,
+	onToggleReaction: (messageId: String, emoji: String) -> Unit,
+	availableReactions: List<String>,
 	onUpdateTopic: (String) -> Unit,
 	onAddMembers: (String) -> Unit,
 	onRemoveMember: (String) -> Unit,
@@ -951,7 +962,22 @@ private fun ConversationDetailPanel(
 					items = state.messages,
 					key = { it.id }
 				) { message ->
-					MessageBubble(message = message)
+					MessageBubble(
+						message = message,
+						availableReactions = availableReactions,
+						onReact = { emoji -> onToggleReaction(message.id, emoji) }
+					)
+				}
+			}
+
+			if (state.typingUsers.isNotEmpty()) {
+				item("typing_indicator") {
+					Text(
+						text = "Typing...",
+						style = MaterialTheme.typography.labelSmall,
+						color = MaterialTheme.colorScheme.primary,
+						modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+					)
 				}
 			}
 		}
@@ -1161,8 +1187,15 @@ private fun GroupMemberRow(
 	}
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun MessageBubble(message: MessageItem) {
+private fun MessageBubble(
+	message: MessageItem,
+	availableReactions: List<String>,
+	onReact: (String) -> Unit
+) {
+	var showReactions by remember(message.id) { mutableStateOf(false) }
+
 	Column(
 		modifier = Modifier.fillMaxWidth(),
 		horizontalAlignment = if (message.isMine) Alignment.End else Alignment.Start
@@ -1179,7 +1212,11 @@ private fun MessageBubble(message: MessageItem) {
 			shape = bubbleShape,
 			border = if (message.isMine) null else BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.35f)),
 			tonalElevation = if (message.isMine) 6.dp else 2.dp,
-			shadowElevation = if (message.isMine) 6.dp else 0.dp
+			shadowElevation = if (message.isMine) 6.dp else 0.dp,
+			modifier = Modifier.combinedClickable(
+				onDoubleClick = { showReactions = !showReactions },
+				onClick = {}
+			)
 		) {
 			Text(
 				text = message.text,
@@ -1187,11 +1224,82 @@ private fun MessageBubble(message: MessageItem) {
 				style = MaterialTheme.typography.bodyMedium
 			)
 		}
+		if (message.reactions.isNotEmpty()) {
+			Spacer(modifier = Modifier.height(6.dp))
+			Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+				message.reactions.forEach { reaction ->
+					val selected = reaction.reactedByMe
+					Surface(
+						shape = RoundedCornerShape(12.dp),
+						color = if (selected) colorScheme.primaryContainer else colorScheme.surface,
+						border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.3f)),
+						tonalElevation = 2.dp,
+						modifier = Modifier
+							.clickable { onReact(reaction.emoji) }
+					) {
+						Row(
+							modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+							horizontalArrangement = Arrangement.spacedBy(6.dp),
+							verticalAlignment = Alignment.CenterVertically
+						) {
+							Text(text = reaction.emoji, style = MaterialTheme.typography.bodyLarge)
+							Text(
+								text = reaction.count.toString(),
+								style = MaterialTheme.typography.labelMedium,
+								color = colorScheme.onSurfaceVariant
+							)
+						}
+					}
+				}
+			}
+		}
+		Spacer(modifier = Modifier.height(6.dp))
+		if (showReactions) {
+			Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+				availableReactions.forEach { emoji ->
+					val selected = message.myReaction == emoji
+					Surface(
+						shape = CircleShape,
+						color = if (selected) colorScheme.primaryContainer else colorScheme.surface,
+						border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.3f)),
+						modifier = Modifier
+							.size(34.dp)
+							.clickable {
+							onReact(emoji)
+							showReactions = false
+						}
+					) {
+						Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+							Text(text = emoji)
+						}
+					}
+				}
+			}
+		}
 		Spacer(modifier = Modifier.height(4.dp))
-		Text(
-			text = message.timestamp,
-			style = MaterialTheme.typography.labelSmall,
-			color = colorScheme.onSurfaceVariant
-		)
+		Row(
+			verticalAlignment = Alignment.CenterVertically,
+			horizontalArrangement = Arrangement.spacedBy(4.dp)
+		) {
+			Text(
+				text = message.timestamp,
+				style = MaterialTheme.typography.labelSmall,
+				color = colorScheme.onSurfaceVariant
+			)
+			if (message.isMine) {
+				val icon = when (message.status) {
+					MessageStatus.SENT -> Icons.Default.Check
+					MessageStatus.DELIVERED -> Icons.Default.DoneAll
+					MessageStatus.READ -> Icons.Default.DoneAll
+				}
+				val tint = if (message.status == MessageStatus.READ) Color.Blue else colorScheme.onSurfaceVariant
+				Icon(
+					imageVector = icon,
+					contentDescription = null,
+					modifier = Modifier.size(16.dp),
+					tint = tint
+				)
+			}
+		}
 	}
 }

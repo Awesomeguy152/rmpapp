@@ -31,6 +31,8 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.UUID
 
+import com.nano.min.network.MessageStatus
+
 data class ConversationsUiState(
     val profileId: String? = null,
     val profileEmail: String? = null,
@@ -49,7 +51,8 @@ data class ConversationDetailUiState(
     val isLoading: Boolean = false,
     val isSending: Boolean = false,
     val messageInput: String = "",
-    val error: String? = null
+    val error: String? = null,
+    val typingUsers: Set<String> = emptySet()
 )
 
 data class ConversationItem(
@@ -66,7 +69,16 @@ data class MessageItem(
     val id: String,
     val text: String,
     val timestamp: String,
-    val isMine: Boolean
+    val isMine: Boolean,
+    val reactions: List<ReactionItem> = emptyList(),
+    val myReaction: String? = null,
+    val status: MessageStatus = MessageStatus.SENT
+)
+
+data class ReactionItem(
+    val emoji: String,
+    val count: Long,
+    val reactedByMe: Boolean
 )
 
 data class ContactSuggestion(
@@ -110,6 +122,7 @@ class ChatsViewModel(
     private val timeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
     private val dateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM HH:mm")
     private val dateOnlyFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy")
+    val availableReactions = listOf("👍", "❤️", "😂", "😮", "😢", "👎")
 
     init {
         viewModelScope.launch {
@@ -144,8 +157,23 @@ class ChatsViewModel(
         _detailState.value = ConversationDetailUiState()
     }
 
+    private var typingJob: Job? = null
+
     fun updateMessageInput(value: String) {
         _detailState.update { it.copy(messageInput = value) }
+        
+        val conversationId = selectedConversationId ?: return
+        
+        typingJob?.cancel()
+        typingJob = viewModelScope.launch {
+            try {
+                chatService.sendTyping(conversationId, true)
+                delay(3000)
+                chatService.sendTyping(conversationId, false)
+            } catch (e: Exception) {
+                // ignore typing errors
+            }
+        }
     }
 
     fun sendMessage() {
@@ -174,6 +202,24 @@ class ChatsViewModel(
                 refreshConversations()
             } catch (t: Throwable) {
                 _detailState.update { it.copy(isSending = false) }
+                handleNetworkError(t, R.string.error_send_message)
+            }
+        }
+    }
+
+    fun toggleReaction(messageId: String, emoji: String) {
+        val current = _detailState.value.messages.firstOrNull { it.id == messageId } ?: return
+        viewModelScope.launch {
+            try {
+                val updated = if (current.myReaction == emoji) {
+                    chatService.removeReaction(messageId)
+                } else {
+                    chatService.reactToMessage(messageId, emoji)
+                }
+                val meId = me?.id
+                val updatedItem = updated.toMessageItem(meId)
+                applyUpdatedMessage(updatedItem)
+            } catch (t: Throwable) {
                 handleNetworkError(t, R.string.error_send_message)
             }
         }
@@ -335,6 +381,41 @@ class ChatsViewModel(
     private suspend fun handleRealtimeEvent(event: ChatEventDto) {
         when (event.type) {
             "message_created" -> handleMessageCreatedEvent(event)
+            "reaction_updated" -> handleReactionUpdatedEvent(event)
+            "user_typing" -> handleTypingEvent(event)
+            "conversation_read" -> handleReadEvent(event)
+        }
+    }
+
+    private fun handleTypingEvent(event: ChatEventDto) {
+        val conversationId = event.conversationId ?: return
+        if (selectedConversationId != conversationId) return
+        val userId = event.readerId ?: return
+
+        _detailState.update { state ->
+            val newTyping = if (event.status == "TYPING") {
+                state.typingUsers + userId
+            } else {
+                state.typingUsers - userId
+            }
+            state.copy(typingUsers = newTyping)
+        }
+    }
+
+    private fun handleReadEvent(event: ChatEventDto) {
+        val conversationId = event.conversationId ?: return
+        if (selectedConversationId != conversationId) return
+        
+        if (event.status == "READ") {
+             _detailState.update { state ->
+                 state.copy(messages = state.messages.map { 
+                     if (it.isMine && it.status != MessageStatus.READ) {
+                         it.copy(status = MessageStatus.READ)
+                     } else {
+                         it
+                     }
+                 })
+             }
         }
     }
 
@@ -355,6 +436,33 @@ class ChatsViewModel(
                 if (state.messages.any { it.id == incoming.id }) state else state.copy(messages = state.messages + incoming)
             }
         }
+    }
+
+    private suspend fun handleReactionUpdatedEvent(event: ChatEventDto) {
+        val conversationId = event.conversationId ?: return
+        val currentUserId = me?.id
+        if (event.recipients.isNotEmpty() && currentUserId != null && event.recipients.none { it == currentUserId }) {
+            return
+        }
+
+        if (selectedConversationId != conversationId) return
+
+        val messageId = event.message?.id ?: event.messageId ?: return
+        val meId = currentUserId
+
+        val updatedItem = when {
+            event.message != null -> event.message.toMessageItem(meId)
+            event.reactions != null -> {
+                val base = _detailState.value.messages.firstOrNull { it.id == messageId } ?: return
+                base.copy(
+                    reactions = event.reactions.map { ReactionItem(it.emoji, it.count, it.reactedByMe) },
+                    myReaction = event.reactions.firstOrNull { it.reactedByMe }?.emoji
+                )
+            }
+            else -> return
+        }
+
+        applyUpdatedMessage(updatedItem)
     }
 
     private suspend fun loadProfile() {
@@ -481,7 +589,10 @@ class ChatsViewModel(
             else -> getString(R.string.message_empty_placeholder)
         },
         timestamp = formatTimestamp(createdAt),
-        isMine = senderId == meId
+        isMine = senderId == meId,
+        reactions = reactions.map { ReactionItem(it.emoji, it.count, it.reactedByMe) },
+        myReaction = reactions.firstOrNull { it.reactedByMe }?.emoji,
+        status = status
     )
 
     private fun UserProfileDto.toSuggestion(): ContactSuggestion = ContactSuggestion(
@@ -490,6 +601,15 @@ class ChatsViewModel(
         role = formatRole(role) ?: role,
         joinedAt = formatDate(createdAt)
     )
+
+    private fun applyUpdatedMessage(updatedItem: MessageItem) {
+        _detailState.update { state ->
+            val idx = state.messages.indexOfFirst { it.id == updatedItem.id }
+            if (idx == -1) state else state.copy(
+                messages = state.messages.toMutableList().also { it[idx] = updatedItem }
+            )
+        }
+    }
 
     private fun formatTimestamp(iso: String): String = runCatching {
         val instant = Instant.parse(iso)

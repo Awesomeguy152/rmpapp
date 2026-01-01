@@ -63,6 +63,20 @@ class ChatService(private val apiClient: ApiClient) {
         }
     }
 
+    suspend fun sendTyping(conversationId: String, isTyping: Boolean) {
+        httpClient.post("$baseUrl/api/chat/conversations/$conversationId/typing") {
+            setBody(TypingRequest(isTyping))
+        }
+    }
+
+    suspend fun reactToMessage(messageId: String, emoji: String): MessageDto =
+        httpClient.post("$baseUrl/api/chat/messages/$messageId/reactions") {
+            setBody(ReactionRq(emoji))
+        }.body()
+
+    suspend fun removeReaction(messageId: String): MessageDto =
+        httpClient.delete("$baseUrl/api/chat/messages/$messageId/reactions").body()
+
     suspend fun updateConversationTopic(conversationId: String, topic: String?): ConversationDto =
         httpClient.patch("$baseUrl/api/chat/conversations/$conversationId/topic") {
             setBody(UpdateTopicRequest(topic = topic))

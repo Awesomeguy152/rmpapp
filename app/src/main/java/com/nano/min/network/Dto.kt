@@ -54,6 +54,9 @@ enum class ConversationType { DIRECT, GROUP }
 enum class MessageTag { NONE, ANSWER, MEETING, IMPORTANT }
 
 @Serializable
+enum class MessageStatus { SENT, DELIVERED, READ }
+
+@Serializable
 data class ConversationSummaryDto(
     val id: String,
     val type: ConversationType,
@@ -93,7 +96,17 @@ data class MessageDto(
     val createdAt: String,
     val editedAt: String? = null,
     val deletedAt: String? = null,
-    val attachments: List<MessageAttachmentDto> = emptyList()
+    val attachments: List<MessageAttachmentDto> = emptyList(),
+    val status: MessageStatus = MessageStatus.SENT,
+    val readBy: List<String> = emptyList(),
+    val reactions: List<MessageReactionDto> = emptyList()
+)
+
+@Serializable
+data class MessageReactionDto(
+    val emoji: String,
+    val count: Long,
+    val reactedByMe: Boolean
 )
 
 @Serializable
@@ -127,12 +140,28 @@ data class MarkReadRequest(
 )
 
 @Serializable
+data class ReactionRq(
+    val emoji: String
+)
+
+@Serializable
+data class TypingRequest(
+    val isTyping: Boolean
+)
+
+@Serializable
 data class ChatEventDto(
     val type: String,
     val conversationId: String? = null,
     val recipients: List<String> = emptyList(),
     val message: MessageDto? = null,
-    val conversation: ConversationSummaryDto? = null
+    val conversation: ConversationSummaryDto? = null,
+    val messageId: String? = null,
+    val reactionEmoji: String? = null,
+    val reactionAction: String? = null,
+    val reactions: List<MessageReactionDto>? = null,
+    val readerId: String? = null,
+    val status: String? = null
 )
 
 @Serializable
