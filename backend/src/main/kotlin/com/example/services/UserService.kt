@@ -56,6 +56,35 @@ class UserService {
             ?.toProfile()
     }
 
+    fun updateProfile(
+        userId: UUID,
+        username: String? = null,
+        displayName: String? = null,
+        bio: String? = null,
+        avatarUrl: String? = null
+    ): UserProfileDTO = transaction {
+        val entityId = EntityID(userId, UserTable)
+        
+        // Check username uniqueness if changing
+        if (username != null) {
+            val existing = UserTable.select { 
+                (UserTable.username eq username) and (UserTable.id neq entityId) 
+            }.any()
+            require(!existing) { "username_taken" }
+        }
+
+        UserTable.update({ UserTable.id eq entityId }) { row ->
+            username?.let { row[UserTable.username] = it }
+            displayName?.let { row[UserTable.displayName] = it }
+            bio?.let { row[UserTable.bio] = it }
+            avatarUrl?.let { row[UserTable.avatarUrl] = it }
+        }
+
+        UserTable.select { UserTable.id eq entityId }
+            .single()
+            .toProfile()
+    }
+
     fun searchContacts(requesterId: UUID, query: String?, limit: Int): List<UserProfileDTO> = transaction {
         val base = UserTable.select { UserTable.id neq EntityID(requesterId, UserTable) }
         val searchQuery = query?.trim().takeUnless { it.isNullOrEmpty() }
@@ -77,7 +106,11 @@ class UserService {
         id = this[UserTable.id].value.toString(),
         email = this[UserTable.email],
         role = Role.valueOf(this[UserTable.role]),
-        createdAt = this[UserTable.createdAt].toString()
+        createdAt = this[UserTable.createdAt].toString(),
+        username = this[UserTable.username],
+        displayName = this[UserTable.displayName],
+        bio = this[UserTable.bio],
+        avatarUrl = this[UserTable.avatarUrl]
     )
 
     private fun Column<String>.ilike(pattern: String): Op<Boolean> = object : Op<Boolean>() {

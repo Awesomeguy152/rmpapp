@@ -43,6 +43,17 @@ class AuthService(val client: ApiClient) {
         return@withContext null
     }
 
+    suspend fun updateProfile(username: String?, displayName: String?, bio: String?, avatarUrl: String?): MeResponse? = withContext(Dispatchers.IO) {
+        val req = UpdateProfileRq(username, displayName, bio, avatarUrl)
+        val response: HttpResponse = client.httpClient.patch("${client.baseUrl}/api/me") {
+            setBody(req)
+        }
+        if (response.status == HttpStatusCode.OK) {
+            return@withContext response.body()
+        }
+        return@withContext null
+    }
+
     fun logout() {
         client.tokenStorage.setToken(null)
     }

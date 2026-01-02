@@ -27,7 +27,19 @@ data class MeResponse(
     val id: String? = null,
     val email: String? = null,
     val role: String? = null,
-    val createdAt: String? = null
+    val createdAt: String? = null,
+    val username: String? = null,
+    val displayName: String? = null,
+    val bio: String? = null,
+    val avatarUrl: String? = null
+)
+
+@Serializable
+data class UpdateProfileRq(
+    val username: String? = null,
+    val displayName: String? = null,
+    val bio: String? = null,
+    val avatarUrl: String? = null
 )
 
 @Serializable
@@ -38,13 +50,21 @@ data class UserProfileDto(
     val id: String,
     val email: String,
     val role: String,
-    val createdAt: String
+    val createdAt: String,
+    val username: String? = null,
+    val displayName: String? = null,
+    val bio: String? = null,
+    val avatarUrl: String? = null
 )
 
 @Serializable
 data class ConversationMemberDto(
-    val userId: String,
-    val joinedAt: String
+    @SerialName("userId") val userId: String,
+    @SerialName("email") val email: String? = null,
+    @SerialName("joinedAt") val joinedAt: String,
+    @SerialName("username") val username: String? = null,
+    @SerialName("displayName") val displayName: String? = null,
+    @SerialName("avatarUrl") val avatarUrl: String? = null
 )
 
 @Serializable
@@ -87,6 +107,22 @@ data class MessageAttachmentDto(
 )
 
 @Serializable
+data class ReplyMessageDto(
+    val id: String,
+    val senderId: String,
+    val senderName: String,
+    val body: String
+)
+
+@Serializable
+data class ForwardedMessageDto(
+    val originalMessageId: String,
+    val originalSenderId: String,
+    val originalSenderName: String,
+    val originalConversationId: String
+)
+
+@Serializable
 data class MessageDto(
     val id: String,
     val conversationId: String,
@@ -99,7 +135,9 @@ data class MessageDto(
     val attachments: List<MessageAttachmentDto> = emptyList(),
     val status: MessageStatus = MessageStatus.SENT,
     val readBy: List<String> = emptyList(),
-    val reactions: List<MessageReactionDto> = emptyList()
+    val reactions: List<MessageReactionDto> = emptyList(),
+    val replyTo: ReplyMessageDto? = null,
+    val forwardedFrom: ForwardedMessageDto? = null
 )
 
 @Serializable
@@ -112,7 +150,9 @@ data class MessageReactionDto(
 @Serializable
 data class SendMessageRequest(
     val body: String,
-    val attachments: List<MessageAttachmentPayload> = emptyList()
+    val attachments: List<MessageAttachmentPayload> = emptyList(),
+    val replyToMessageId: String? = null,
+    val forwardedFromMessageId: String? = null
 )
 
 @Serializable
@@ -120,6 +160,11 @@ data class MessageAttachmentPayload(
     val fileName: String,
     val contentType: String,
     val dataBase64: String
+)
+
+@Serializable
+data class EditMessageRequest(
+    val body: String
 )
 
 @Serializable

@@ -43,7 +43,12 @@ data object SettingsScreenRoute : Route {
     override val icon = Icons.Sharp.Chat
 }
 
-data object ProfileScreenRoute : Route {
+data class ProfileScreenRoute(val userId: String? = null) : Route {
     override val title = R.string.screen_profile
-    override val icon = Icons.Sharp.Chat
+    override val icon = Icons.AutoMirrored.Sharp.Chat
+}
+
+data object EditProfileScreenRoute : Route {
+    override val title = R.string.screen_profile
+    override val icon = Icons.AutoMirrored.Sharp.Chat
 }

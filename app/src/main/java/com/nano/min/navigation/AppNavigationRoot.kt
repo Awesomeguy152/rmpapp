@@ -12,6 +12,8 @@ import com.nano.min.network.TokenStorage
 import com.nano.min.screens.LoginScreen
 import com.nano.min.screens.RegisterScreen
 import com.nano.min.screens.AppRootScreen
+import com.nano.min.screens.ProfileScreen
+import com.nano.min.screens.EditProfileScreen
 import org.koin.compose.koinInject
 
 @Composable
@@ -40,16 +42,14 @@ fun AppNavigationRoot(
         entryProvider = entryProvider {
             entry<LoginRoute> { route ->
                 LoginScreen(
-                    route,
                     navigateRegister = { backStack.add(RegisterRoute) },
-                    navigateForgotPassword = {},
-                    onLoginSuccess = { navigateToApp() }
+                    navigateApp = { navigateToApp() }
                 )
             }
             entry<RegisterRoute> { route ->
-                RegisterScreen(route,
-                    navigateLogin = { backStack.add(LoginRoute) },
-                    onRegisterSuccess = { navigateToApp() }
+                RegisterScreen(
+                    navigateLogin = { backStack.removeLast(); backStack.add(LoginRoute) },
+                    navigateApp = { navigateToApp() }
                 )
             }
             entry<AppRoute> {
@@ -57,7 +57,27 @@ fun AppNavigationRoot(
                     onLogout = {
                         backStack.clear()
                         backStack.add(LoginRoute)
+                    },
+                    onProfileClick = {
+                        backStack.add(ProfileScreenRoute())
                     }
+                )
+            }
+            entry<ProfileScreenRoute> {
+                ProfileScreen(
+                    onLogout = {
+                        backStack.clear()
+                        backStack.add(LoginRoute)
+                    },
+                    onEditProfile = {
+                        backStack.add(EditProfileScreenRoute)
+                    }
+                )
+            }
+            entry<EditProfileScreenRoute> {
+                EditProfileScreen(
+                    onBack = { backStack.removeLastOrNull() },
+                    onSaveSuccess = { backStack.removeLastOrNull() }
                 )
             }
         }

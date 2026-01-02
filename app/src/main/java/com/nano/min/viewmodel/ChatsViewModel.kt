@@ -1,6 +1,7 @@
 package com.nano.min.viewmodel
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.viewModelScope
 import com.nano.min.R
 import com.nano.min.network.AuthService
@@ -11,6 +12,7 @@ import com.nano.min.network.MessageDto
 import com.nano.min.network.MeResponse
 import com.nano.min.network.ChatEventDto
 import com.nano.min.network.UserProfileDto
+import com.nano.min.network.MessageAttachmentPayload
 import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
@@ -38,6 +40,8 @@ data class ConversationsUiState(
     val profileEmail: String? = null,
     val profileRole: String? = null,
     val profileCreatedAt: String? = null,
+    val profileDisplayName: String? = null,
+    val profileUsername: String? = null,
     val conversations: List<ConversationItem> = emptyList(),
     val isLoading: Boolean = false,
     val isSearchingContacts: Boolean = false,
@@ -49,10 +53,27 @@ data class ConversationDetailUiState(
     val conversation: ConversationItem? = null,
     val messages: List<MessageItem> = emptyList(),
     val isLoading: Boolean = false,
+    val isLoadingMore: Boolean = false,
+    val hasMoreMessages: Boolean = true,
     val isSending: Boolean = false,
     val messageInput: String = "",
+    val pendingAttachments: List<PendingAttachment> = emptyList(),
     val error: String? = null,
-    val typingUsers: Set<String> = emptySet()
+    val typingUsers: Set<String> = emptySet(),
+    val replyingToMessage: MessageItem? = null,
+    val isSearchMode: Boolean = false,
+    val searchQuery: String = "",
+    val searchResults: List<MessageItem> = emptyList(),
+    val isSearching: Boolean = false,
+    val isRecordingVoice: Boolean = false,
+    val voiceRecordingStartTime: Long = 0L
+)
+
+data class PendingAttachment(
+    val uri: Uri,
+    val fileName: String,
+    val contentType: String,
+    val sizeBytes: Long
 )
 
 data class ConversationItem(
@@ -65,14 +86,36 @@ data class ConversationItem(
     val raw: ConversationSummaryDto
 )
 
+data class ReplyInfo(
+    val id: String,
+    val senderName: String,
+    val body: String
+)
+
+data class ForwardInfo(
+    val originalSenderName: String
+)
+
 data class MessageItem(
     val id: String,
     val text: String,
     val timestamp: String,
+    val dateHeader: String,
     val isMine: Boolean,
+    val senderName: String? = null,
     val reactions: List<ReactionItem> = emptyList(),
     val myReaction: String? = null,
-    val status: MessageStatus = MessageStatus.SENT
+    val status: MessageStatus = MessageStatus.SENT,
+    val replyTo: ReplyInfo? = null,
+    val forwardedFrom: ForwardInfo? = null,
+    val attachments: List<AttachmentItem> = emptyList()
+)
+
+data class AttachmentItem(
+    val id: String,
+    val fileName: String,
+    val contentType: String,
+    val dataBase64: String
 )
 
 data class ReactionItem(
@@ -85,12 +128,16 @@ data class ContactSuggestion(
     val id: String,
     val email: String,
     val role: String,
-    val joinedAt: String
+    val joinedAt: String,
+    val name: String? = null
 )
 
 data class MemberInfo(
     val id: String,
-    val joinedAt: String
+    val joinedAt: String,
+    val name: String? = null,
+    val avatarUrl: String? = null,
+    val isOnline: Boolean = false // TODO: Get from WebSocket presence updates
 )
 
 sealed interface ChatsEvent {
@@ -181,27 +228,241 @@ class ChatsViewModel(
         val currentState = _detailState.value
         val conversation = currentState.conversation ?: return
         val message = currentState.messageInput.trim()
-        if (message.isEmpty()) {
+        val pendingAttachments = currentState.pendingAttachments
+        
+        if (message.isEmpty() && pendingAttachments.isEmpty()) {
             _detailState.update { it.copy(error = getString(R.string.error_empty_message)) }
             return
         }
+        
+        val replyToId = currentState.replyingToMessage?.id
 
         viewModelScope.launch {
             _detailState.update { it.copy(isSending = true, error = null) }
             try {
-                val dto = chatService.sendMessage(conversationId, message)
+                // Convert pending attachments to base64
+                val attachmentPayloads = pendingAttachments.mapNotNull { attachment ->
+                    try {
+                        val inputStream = getApplication<Application>().contentResolver.openInputStream(attachment.uri)
+                        val bytes = inputStream?.readBytes() ?: return@mapNotNull null
+                        inputStream.close()
+                        val base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                        MessageAttachmentPayload(
+                            fileName = attachment.fileName,
+                            contentType = attachment.contentType,
+                            dataBase64 = base64
+                        )
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+                
+                val dto = chatService.sendMessage(
+                    conversationId = conversationId, 
+                    body = message,
+                    attachments = attachmentPayloads,
+                    replyToMessageId = replyToId
+                )
                 val meId = me?.id
                 val messageItem = dto.toMessageItem(meId)
                 _detailState.update {
                     it.copy(
                         isSending = false,
                         messageInput = "",
+                        pendingAttachments = emptyList(),
+                        messages = it.messages + messageItem,
+                        replyingToMessage = null
+                    )
+                }
+                refreshConversations()
+            } catch (t: Throwable) {
+                _detailState.update { it.copy(isSending = false) }
+                handleNetworkError(t, R.string.error_send_message)
+            }
+        }
+    }
+    
+    fun addAttachment(uri: Uri, fileName: String, contentType: String, sizeBytes: Long) {
+        val attachment = PendingAttachment(uri, fileName, contentType, sizeBytes)
+        _detailState.update { it.copy(pendingAttachments = it.pendingAttachments + attachment) }
+    }
+    
+    fun removeAttachment(uri: Uri) {
+        _detailState.update { state ->
+            state.copy(pendingAttachments = state.pendingAttachments.filter { it.uri != uri })
+        }
+    }
+    
+    fun clearAttachments() {
+        _detailState.update { it.copy(pendingAttachments = emptyList()) }
+    }
+    
+    fun forwardMessage(messageId: String, toConversationId: String) {
+        viewModelScope.launch {
+            try {
+                val originalMessage = _detailState.value.messages.find { it.id == messageId }
+                val forwardText = originalMessage?.text ?: ""
+                
+                chatService.sendMessage(
+                    conversationId = toConversationId,
+                    body = forwardText,
+                    forwardedFromMessageId = messageId
+                )
+                _events.emit(ChatsEvent.ShowMessage(getString(R.string.message_forwarded)))
+                refreshConversations()
+            } catch (t: Throwable) {
+                handleNetworkError(t, R.string.error_forward_message)
+            }
+        }
+    }
+    
+    fun sendVoiceMessage(audioData: ByteArray, durationMs: Long) {
+        val conversationId = selectedConversationId ?: return
+        
+        viewModelScope.launch {
+            _detailState.update { it.copy(isSending = true, error = null) }
+            try {
+                val base64 = android.util.Base64.encodeToString(audioData, android.util.Base64.NO_WRAP)
+                val fileName = "voice_${System.currentTimeMillis()}.m4a"
+                
+                val dto = chatService.sendMessage(
+                    conversationId = conversationId,
+                    body = getString(R.string.voice_message),
+                    attachments = listOf(
+                        MessageAttachmentPayload(
+                            fileName = fileName,
+                            contentType = "audio/mp4",
+                            dataBase64 = base64
+                        )
+                    )
+                )
+                val meId = me?.id
+                val messageItem = dto.toMessageItem(meId)
+                _detailState.update {
+                    it.copy(
+                        isSending = false,
                         messages = it.messages + messageItem
                     )
                 }
                 refreshConversations()
             } catch (t: Throwable) {
                 _detailState.update { it.copy(isSending = false) }
+                handleNetworkError(t, R.string.error_send_message)
+            }
+        }
+    }
+    
+    fun startVoiceRecording() {
+        _detailState.update { 
+            it.copy(
+                isRecordingVoice = true,
+                voiceRecordingStartTime = System.currentTimeMillis()
+            ) 
+        }
+    }
+    
+    fun stopVoiceRecording() {
+        _detailState.update { it.copy(isRecordingVoice = false) }
+    }
+    
+    fun cancelVoiceRecording() {
+        _detailState.update { 
+            it.copy(
+                isRecordingVoice = false,
+                voiceRecordingStartTime = 0L
+            ) 
+        }
+    }
+    
+    fun startReplyTo(message: MessageItem) {
+        _detailState.update { it.copy(replyingToMessage = message) }
+    }
+    
+    fun cancelReply() {
+        _detailState.update { it.copy(replyingToMessage = null) }
+    }
+
+    fun toggleSearchMode() {
+        _detailState.update { 
+            it.copy(
+                isSearchMode = !it.isSearchMode, 
+                searchQuery = "",
+                searchResults = emptyList()
+            ) 
+        }
+    }
+
+    fun updateSearchQuery(query: String) {
+        _detailState.update { it.copy(searchQuery = query) }
+        if (query.length >= 2) {
+            searchInChat(query)
+        } else {
+            _detailState.update { it.copy(searchResults = emptyList()) }
+        }
+    }
+
+    private var searchJob: Job? = null
+
+    private fun searchInChat(query: String) {
+        val conversationId = selectedConversationId ?: return
+        val conversation = _detailState.value.conversation ?: return
+
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            _detailState.update { it.copy(isSearching = true) }
+            delay(300) // Debounce
+            try {
+                val meId = me?.id
+                val results = chatService.getMessages(conversationId, limit = 50, offset = 0, query = query)
+                _detailState.update { state ->
+                    state.copy(
+                        searchResults = results.map { it.toMessageItem(meId, conversation.members) },
+                        isSearching = false
+                    )
+                }
+            } catch (t: Throwable) {
+                _detailState.update { it.copy(isSearching = false) }
+            }
+        }
+    }
+
+    fun clearSearch() {
+        _detailState.update { 
+            it.copy(
+                isSearchMode = false,
+                searchQuery = "",
+                searchResults = emptyList()
+            ) 
+        }
+    }
+
+    fun editMessage(messageId: String, newText: String) {
+        val conversationId = selectedConversationId ?: return
+        val trimmed = newText.trim()
+        if (trimmed.isEmpty()) return
+
+        viewModelScope.launch {
+            try {
+                val updated = chatService.editMessage(messageId, trimmed)
+                val meId = me?.id
+                val updatedItem = updated.toMessageItem(meId)
+                applyUpdatedMessage(updatedItem)
+            } catch (t: Throwable) {
+                handleNetworkError(t, R.string.error_send_message)
+            }
+        }
+    }
+
+    fun deleteMessage(messageId: String) {
+        val conversationId = selectedConversationId ?: return
+
+        viewModelScope.launch {
+            try {
+                val updated = chatService.deleteMessage(messageId)
+                val meId = me?.id
+                val updatedItem = updated.toMessageItem(meId)
+                applyUpdatedMessage(updatedItem)
+            } catch (t: Throwable) {
                 handleNetworkError(t, R.string.error_send_message)
             }
         }
@@ -309,6 +570,22 @@ class ChatsViewModel(
                 refreshConversationsInternal(selectConversation = conversationId)
             } catch (t: Throwable) {
                 handleNetworkError(t, R.string.error_manage_members)
+            }
+        }
+    }
+
+    fun leaveCurrentConversation() {
+        val conversationId = selectedConversationId ?: return
+        val myId = me?.id ?: return
+
+        viewModelScope.launch {
+            try {
+                chatService.removeConversationMember(conversationId, myId)
+                _events.emit(ChatsEvent.ShowMessage(getString(R.string.message_left_conversation)))
+                clearConversationSelection()
+                refreshConversationsInternal(selectConversation = null)
+            } catch (t: Throwable) {
+                handleNetworkError(t, R.string.error_leave_conversation)
             }
         }
     }
@@ -431,7 +708,8 @@ class ChatsViewModel(
 
         if (currentSelection == conversationId && event.message != null) {
             val meId = currentUserId
-            val incoming = event.message.toMessageItem(meId)
+            val members = _detailState.value.conversation?.members ?: emptyList()
+            val incoming = event.message.toMessageItem(meId, members)
             _detailState.update { state ->
                 if (state.messages.any { it.id == incoming.id }) state else state.copy(messages = state.messages + incoming)
             }
@@ -476,13 +754,18 @@ class ChatsViewModel(
                         profileId = response?.id,
                         profileEmail = response?.email,
                         profileRole = role,
-                        profileCreatedAt = createdAt
+                        profileCreatedAt = createdAt,
+                        profileDisplayName = response?.displayName,
+                        profileUsername = response?.username
                     )
                 }
             }
     }
 
     private suspend fun refreshConversationsInternal(selectConversation: String?) {
+        if (me == null) {
+            loadProfile()
+        }
         _conversationState.update { it.copy(isLoading = true, error = null) }
         try {
             val meId = me?.id
@@ -514,15 +797,21 @@ class ChatsViewModel(
         }
     }
 
+    private val pageSize = 30
+
     private suspend fun loadMessagesInternal(conversationId: String, conversation: ConversationItem) {
-        _detailState.update { it.copy(conversation = conversation, isLoading = true, error = null) }
+        if (me == null) {
+            loadProfile()
+        }
+        _detailState.update { it.copy(conversation = conversation, isLoading = true, error = null, hasMoreMessages = true) }
         try {
             val meId = me?.id
-            val messages = chatService.getMessages(conversationId)
+            val messages = chatService.getMessages(conversationId, limit = pageSize, offset = 0)
             _detailState.value = ConversationDetailUiState(
                 conversation = conversation,
-                messages = messages.map { it.toMessageItem(meId) },
+                messages = messages.map { it.toMessageItem(meId, conversation.members) },
                 isLoading = false,
+                hasMoreMessages = messages.size >= pageSize,
                 messageInput = ""
             )
             runCatching {
@@ -541,29 +830,73 @@ class ChatsViewModel(
         }
     }
 
+    fun loadMoreMessages() {
+        val conversationId = selectedConversationId ?: return
+        val currentState = _detailState.value
+        val conversation = currentState.conversation ?: return
+        
+        if (currentState.isLoadingMore || !currentState.hasMoreMessages) return
+
+        viewModelScope.launch {
+            _detailState.update { it.copy(isLoadingMore = true) }
+            try {
+                val meId = me?.id
+                val offset = currentState.messages.size
+                val olderMessages = chatService.getMessages(conversationId, limit = pageSize, offset = offset)
+                
+                val newItems = olderMessages.map { it.toMessageItem(meId, conversation.members) }
+                _detailState.update { state ->
+                    state.copy(
+                        messages = newItems + state.messages,
+                        isLoadingMore = false,
+                        hasMoreMessages = olderMessages.size >= pageSize
+                    )
+                }
+            } catch (t: Throwable) {
+                _detailState.update { it.copy(isLoadingMore = false) }
+            }
+        }
+    }
+
     private fun ConversationSummaryDto.toConversationItem(meId: String?): ConversationItem {
         val normalizedTopic = topic?.takeIf { it.isNotBlank() }
-        val otherMemberId = members.map { it.userId }.firstOrNull { it != meId }
-        val title = when {
-            !normalizedTopic.isNullOrEmpty() -> normalizedTopic
-            type.name == "GROUP" -> getString(R.string.title_group_chat)
-            else -> otherMemberId?.let { getString(R.string.title_direct_chat, it.takeLast(6)) }
-                ?: getString(R.string.title_direct_chat_fallback)
-        }
 
         val formattedMembers = members.map { member ->
             MemberInfo(
                 id = member.userId,
-                joinedAt = formatDate(member.joinedAt)
-            )
-        }
+                joinedAt = formatDate(member.joinedAt),
+            name = member.displayName?.takeIf { it.isNotBlank() }
+                    ?: member.username?.takeIf { it.isNotBlank() }
+                    ?: member.email?.substringBefore("@")
+                    ?: "ID ${member.userId.takeLast(6)}",
+            avatarUrl = member.avatarUrl
+        )
+    }
 
-        val lastMessagePreview = lastMessage?.let { message ->
-            when {
+    val otherMember = formattedMembers.firstOrNull { it.id != meId }
+
+    val title = when {
+        type.name == "GROUP" && !normalizedTopic.isNullOrEmpty() -> normalizedTopic
+        type.name == "GROUP" -> getString(R.string.title_group_chat)
+        else -> otherMember?.name ?: normalizedTopic ?: getString(R.string.title_direct_chat_fallback)
+    }
+
+    val lastMessagePreview = lastMessage?.let { message ->
+            val senderName = if (message.senderId != meId) {
+                formattedMembers.find { it.id == message.senderId }?.name
+            } else null
+            
+            val content = when {
                 message.deletedAt != null -> getString(R.string.message_deleted)
                 message.body.isNotBlank() -> message.body
                 message.attachments.isNotEmpty() -> getString(R.string.message_with_attachment)
                 else -> getString(R.string.message_empty_placeholder)
+            }
+            
+            if (senderName != null && type.name == "GROUP") {
+                "$senderName: $content"
+            } else {
+                content
             }
         } ?: getString(R.string.message_no_history)
 
@@ -580,7 +913,7 @@ class ChatsViewModel(
         )
     }
 
-    private fun MessageDto.toMessageItem(meId: String?): MessageItem = MessageItem(
+    private fun MessageDto.toMessageItem(meId: String?, members: List<MemberInfo> = emptyList()): MessageItem = MessageItem(
         id = id,
         text = when {
             deletedAt != null -> getString(R.string.message_deleted)
@@ -589,17 +922,38 @@ class ChatsViewModel(
             else -> getString(R.string.message_empty_placeholder)
         },
         timestamp = formatTimestamp(createdAt),
+        dateHeader = formatDateHeader(createdAt),
         isMine = senderId == meId,
+        senderName = if (senderId != meId) members.find { it.id == senderId }?.name else null,
         reactions = reactions.map { ReactionItem(it.emoji, it.count, it.reactedByMe) },
         myReaction = reactions.firstOrNull { it.reactedByMe }?.emoji,
-        status = status
+        status = status,
+        replyTo = replyTo?.let { 
+            ReplyInfo(
+                id = it.id,
+                senderName = it.senderName,
+                body = it.body
+            )
+        },
+        forwardedFrom = forwardedFrom?.let {
+            ForwardInfo(originalSenderName = it.originalSenderName)
+        },
+        attachments = attachments.map { 
+            AttachmentItem(
+                id = it.id,
+                fileName = it.fileName,
+                contentType = it.contentType,
+                dataBase64 = it.dataBase64
+            )
+        }
     )
 
     private fun UserProfileDto.toSuggestion(): ContactSuggestion = ContactSuggestion(
         id = id,
         email = email,
         role = formatRole(role) ?: role,
-        joinedAt = formatDate(createdAt)
+        joinedAt = formatDate(createdAt),
+        name = displayName?.takeIf { it.isNotBlank() } ?: username?.takeIf { it.isNotBlank() }
     )
 
     private fun applyUpdatedMessage(updatedItem: MessageItem) {
@@ -626,6 +980,18 @@ class ChatsViewModel(
         val instant = Instant.parse(iso)
         val zoned = instant.atZone(ZoneId.systemDefault())
         zoned.format(dateOnlyFormatter)
+    }.getOrElse { iso }
+
+    private fun formatDateHeader(iso: String): String = runCatching {
+        val instant = Instant.parse(iso)
+        val zoned = instant.atZone(ZoneId.systemDefault())
+        val now = Instant.now().atZone(ZoneId.systemDefault())
+        
+        when {
+            zoned.toLocalDate() == now.toLocalDate() -> getString(R.string.date_today)
+            zoned.toLocalDate() == now.minusDays(1).toLocalDate() -> getString(R.string.date_yesterday)
+            else -> zoned.format(dateOnlyFormatter)
+        }
     }.getOrElse { iso }
 
     private fun formatRole(role: String?): String? = role?.lowercase()?.replaceFirstChar { it.titlecase() }

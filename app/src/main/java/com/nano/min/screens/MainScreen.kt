@@ -60,11 +60,10 @@ fun MainScreen() {
         }
     ) {
         if (isViewingProfile) {
-            ProfileScreen(
-                name = "NanoUser",
-                description = "Люблю технологии и быстрые поездки",
-                avatarResId = R.drawable.ic_car
-            )
+            // ProfileScreen has been updated and requires ViewModel injection.
+            // This MainScreen seems to be legacy/prototype code.
+            // ProfileScreen() 
+            Text("Profile Screen is not available in this preview.")
         } else {
             HomeContent(
                 onOpenMenu = { scope.launch { drawerState.open() } }

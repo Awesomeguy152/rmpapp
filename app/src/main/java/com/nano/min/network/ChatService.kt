@@ -36,15 +36,40 @@ class ChatService(private val apiClient: ApiClient) {
     suspend fun getMessages(
         conversationId: String,
         limit: Int = 100,
-        offset: Int = 0
+        offset: Int = 0,
+        query: String? = null
     ): List<MessageDto> = httpClient.get("$baseUrl/api/chat/conversations/$conversationId/messages") {
+        parameter("limit", limit)
+        parameter("offset", offset)
+        if (!query.isNullOrBlank()) {
+            parameter("q", query)
+        }
+    }.body()
+
+    suspend fun searchMessages(
+        query: String,
+        limit: Int = 50,
+        offset: Int = 0
+    ): List<MessageDto> = httpClient.get("$baseUrl/api/chat/messages/search") {
+        parameter("q", query)
         parameter("limit", limit)
         parameter("offset", offset)
     }.body()
 
-    suspend fun sendMessage(conversationId: String, body: String): MessageDto =
+    suspend fun sendMessage(
+        conversationId: String, 
+        body: String,
+        attachments: List<MessageAttachmentPayload> = emptyList(),
+        replyToMessageId: String? = null,
+        forwardedFromMessageId: String? = null
+    ): MessageDto =
         httpClient.post("$baseUrl/api/chat/conversations/$conversationId/messages") {
-            setBody(SendMessageRequest(body = body))
+            setBody(SendMessageRequest(
+                body = body,
+                attachments = attachments,
+                replyToMessageId = replyToMessageId,
+                forwardedFromMessageId = forwardedFromMessageId
+            ))
         }.body()
 
     suspend fun createDirectConversation(memberId: String, topic: String?): ConversationDto =
@@ -68,6 +93,14 @@ class ChatService(private val apiClient: ApiClient) {
             setBody(TypingRequest(isTyping))
         }
     }
+
+    suspend fun editMessage(messageId: String, body: String): MessageDto =
+        httpClient.patch("$baseUrl/api/chat/messages/$messageId") {
+            setBody(EditMessageRequest(body = body))
+        }.body()
+
+    suspend fun deleteMessage(messageId: String): MessageDto =
+        httpClient.delete("$baseUrl/api/chat/messages/$messageId").body()
 
     suspend fun reactToMessage(messageId: String, emoji: String): MessageDto =
         httpClient.post("$baseUrl/api/chat/messages/$messageId/reactions") {

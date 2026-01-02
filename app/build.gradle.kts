@@ -57,6 +57,8 @@ dependencies {
     implementation(libs.androidx.compose.material.icons)
     implementation(libs.androidx.compose.material3.adaptive.navigation.suite)
     implementation(libs.androidx.navigation3.ui)
+    implementation(libs.coil.compose)
+    implementation(libs.accompanist.swiperefresh)
     // implement EncryptedSharedPreferences
     implementation(libs.androidx.security.crypto)
 

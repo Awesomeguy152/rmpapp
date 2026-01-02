@@ -618,7 +618,7 @@ class ChatService {
         ensureMembership(conversationId, userId)
     }
 
-    private fun ensureMembership(conversationId: UUID, userId: UUID) {
+    fun ensureMembership(conversationId: UUID, userId: UUID) {
         val conversationEntityId = EntityID(conversationId, Conversations)
         val conversationExists = Conversations
             .select { Conversations.id eq conversationEntityId }
