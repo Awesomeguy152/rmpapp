@@ -83,9 +83,24 @@ data class ConversationSummaryDto(
     val topic: String? = null,
     val createdBy: String,
     val createdAt: String,
+    val pinnedAt: String? = null,
+    val archivedAt: String? = null,
+    val isMuted: Boolean = false,
+    val mutedUntil: String? = null,
     val members: List<ConversationMemberDto> = emptyList(),
     val lastMessage: MessageDto? = null,
-    val unreadCount: Long = 0
+    val unreadCount: Long = 0,
+    val pinnedMessages: List<PinnedMessageDto> = emptyList()
+)
+
+@Serializable
+data class PinnedMessageDto(
+    val id: String,
+    val messageId: String,
+    val messageBody: String,
+    val senderName: String,
+    val pinnedBy: String,
+    val pinnedAt: String
 )
 
 @Serializable
@@ -206,7 +221,18 @@ data class ChatEventDto(
     val reactionAction: String? = null,
     val reactions: List<MessageReactionDto>? = null,
     val readerId: String? = null,
-    val status: String? = null
+    val status: String? = null,
+    // Presence fields
+    val userId: String? = null,
+    val isOnline: Boolean? = null,
+    val lastSeenAt: String? = null
+)
+
+@Serializable
+data class UserPresenceDto(
+    val userId: String,
+    val isOnline: Boolean,
+    val lastSeenAt: String
 )
 
 @Serializable

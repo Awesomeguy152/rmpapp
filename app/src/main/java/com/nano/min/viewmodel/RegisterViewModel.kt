@@ -3,6 +3,7 @@ package com.nano.min.viewmodel
 import android.app.Application
 import androidx.lifecycle.viewModelScope
 import com.nano.min.R
+import com.nano.min.fcm.MyFirebaseMessagingService
 import com.nano.min.network.AuthService
 import com.nano.min.network.ErrorResponse
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,7 +23,7 @@ data class RegisterUiState(
 )
 
 class RegisterViewModel(
-    application: Application,
+    private val application: Application,
     private val authService: AuthService
 ) : ViewModelRes(application) {
 
@@ -57,10 +58,13 @@ class RegisterViewModel(
                 }
 
                 val loggedIn = authService.login(currentState.email, currentState.password)
-                _uiState.value = if (loggedIn) {
-                    currentState.copy(isLoading = false, isRegisterSuccessful = true)
+                if (loggedIn) {
+                    // Регистрируем FCM токен после успешной регистрации и логина
+                    MyFirebaseMessagingService.registerToken(application, authService)
+                    
+                    _uiState.value = currentState.copy(isLoading = false, isRegisterSuccessful = true)
                 } else {
-                    currentState.copy(
+                    _uiState.value = currentState.copy(
                         isLoading = false,
                         error = getString(R.string.register_auto_login_failed)
                     )

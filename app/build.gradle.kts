@@ -3,6 +3,8 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.google.services)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -21,6 +23,7 @@ android {
 
     buildTypes {
         debug {
+            // Эмулятор: 10.0.2.2 - это localhost хост-машины
             buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:8080\"")
         }
         release {
@@ -29,7 +32,8 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            buildConfigField("String", "BASE_URL", "\"https://minimum.illegalfiles.icu\"")
+            // Эмулятор: 10.0.2.2 для тестирования
+            buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:8080\"")
         }
     }
     compileOptions {
@@ -80,6 +84,19 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.livedata.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
+
+    // Firebase
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
+    implementation(libs.firebase.analytics)
+
+    // Room
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
+    ksp(libs.room.compiler)
+
+    // ExifInterface
+    implementation(libs.exifinterface)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

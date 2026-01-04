@@ -119,5 +119,35 @@
     <string name="stop_recording">Остановить запись</string>
     <string name="cancel_recording">Отменить запись</string>
     <string name="voice_permission_denied">Для голосовых сообщений нужен доступ к микрофону</string>
+    <string name="conversation_archived">Чат архивирован</string>
+    <string name="conversation_unarchived">Чат разархивирован</string>
+    <string name="conversation_muted">Уведомления отключены</string>
+    <string name="conversation_unmuted">Уведомления включены</string>
+    <string name="conversation_deleted">Чат удалён</string>
+    <string name="conversation_pinned">Чат закреплён</string>
+    <string name="conversation_unpinned">Чат откреплён</string>
+    <string name="error_generic">Произошла ошибка. Попробуйте ещё раз.</string>
+    
+    <!-- Forgot Password -->
+    <string name="forgot_password_title">Забыли пароль?</string>
+    <string name="forgot_password_subtitle">Введите email, и мы отправим код для сброса</string>
+    <string name="reset_password_subtitle">Введите код из письма и новый пароль</string>
+    <string name="enter_email">Введите ваш email</string>
+    <string name="send_reset_link">Отправить код</string>
+    <string name="reset_code">Код сброса</string>
+    <string name="new_password">Новый пароль</string>
+    <string name="check_email">Мы отправили код на %s</string>
+    <string name="reset_password">Сбросить пароль</string>
+    <string name="back_to_login">Вернуться к входу</string>
+    <string name="back">Назад</string>
+    
+    <!-- Pinned Messages -->
+    <string name="pinned_messages">Закреплённые сообщения</string>
+    <string name="message_pinned">Сообщение закреплено</string>
+    <string name="message_unpinned">Сообщение откреплено</string>
+    <string name="pin_message">Закрепить сообщение</string>
+    <string name="unpin_message">Открепить сообщение</string>
+    <string name="no_pinned_messages">Нет закреплённых сообщений</string>
+    <string name="offline_mode">Офлайн-режим — показаны данные из кеша</string>
 
 </resources>

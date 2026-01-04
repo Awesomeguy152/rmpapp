@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -68,6 +69,7 @@ import org.koin.androidx.compose.koinViewModel
 @Composable
 fun LoginScreen(
     navigateRegister: () -> Unit,
+    navigateForgotPassword: () -> Unit,
     navigateApp: () -> Unit
 ) {
     val viewModel: LoginViewModel = koinViewModel()
@@ -225,7 +227,24 @@ fun LoginScreen(
                         singleLine = true
                     )
 
-                    Spacer(modifier = Modifier.height(32.dp))
+                    // Forgot password link
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(
+                            onClick = navigateForgotPassword,
+                            enabled = !uiState.isLoading
+                        ) {
+                            Text(
+                                text = stringResource(R.string.forgotpass),
+                                color = colorScheme.primary,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     Button(
                         onClick = { viewModel.login() },

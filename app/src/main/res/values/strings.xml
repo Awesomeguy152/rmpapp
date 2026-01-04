@@ -121,4 +121,34 @@
     <string name="stop_recording">Stop recording</string>
     <string name="cancel_recording">Cancel recording</string>
     <string name="voice_permission_denied">Microphone permission required for voice messages</string>
+    <string name="conversation_archived">Chat archived</string>
+    <string name="conversation_unarchived">Chat unarchived</string>
+    <string name="conversation_muted">Notifications muted</string>
+    <string name="conversation_unmuted">Notifications unmuted</string>
+    <string name="conversation_deleted">Chat deleted</string>
+    <string name="conversation_pinned">Chat pinned</string>
+    <string name="conversation_unpinned">Chat unpinned</string>
+    <string name="error_generic">Something went wrong. Try again.</string>
+    
+    <!-- Forgot Password -->
+    <string name="forgot_password_title">Forgot Password?</string>
+    <string name="forgot_password_subtitle">Enter your email and we\'ll send you a reset code</string>
+    <string name="reset_password_subtitle">Enter the code from email and your new password</string>
+    <string name="enter_email">Enter your email</string>
+    <string name="send_reset_link">Send Reset Code</string>
+    <string name="reset_code">Reset Code</string>
+    <string name="new_password">New Password</string>
+    <string name="check_email">We sent a code to %s</string>
+    <string name="reset_password">Reset Password</string>
+    <string name="back_to_login">Back to Login</string>
+    <string name="back">Back</string>
+    
+    <!-- Pinned Messages -->
+    <string name="pinned_messages">Pinned messages</string>
+    <string name="message_pinned">Message pinned</string>
+    <string name="message_unpinned">Message unpinned</string>
+    <string name="pin_message">Pin message</string>
+    <string name="unpin_message">Unpin message</string>
+    <string name="no_pinned_messages">No pinned messages</string>
+    <string name="offline_mode">Offline mode - showing cached data</string>
 </resources>

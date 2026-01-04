@@ -131,6 +131,96 @@ class ChatService(private val apiClient: ApiClient) {
             }
         }.body()
 
+    /**
+     * Получает онлайн-статус пользователя
+     */
+    suspend fun getUserPresence(userId: String): UserPresenceDto =
+        httpClient.get("$baseUrl/api/users/$userId/presence").body()
+
+    /**
+     * Получает онлайн-статус нескольких пользователей
+     */
+    suspend fun getUsersPresence(userIds: List<String>): List<UserPresenceDto> =
+        httpClient.get("$baseUrl/api/users/presence") {
+            parameter("ids", userIds.joinToString(","))
+        }.body()
+
+    /**
+     * Получает список онлайн пользователей
+     */
+    suspend fun getOnlineUsers(): List<String> {
+        val response: Map<String, List<String>> = httpClient.get("$baseUrl/api/users/online").body()
+        return response["onlineUserIds"] ?: emptyList()
+    }
+
+    /**
+     * Архивировать чат
+     */
+    suspend fun archiveConversation(conversationId: String): ConversationSummaryDto =
+        httpClient.post("$baseUrl/api/chat/conversations/$conversationId/archive").body()
+
+    /**
+     * Разархивировать чат
+     */
+    suspend fun unarchiveConversation(conversationId: String): ConversationSummaryDto =
+        httpClient.delete("$baseUrl/api/chat/conversations/$conversationId/archive").body()
+
+    /**
+     * Заглушить уведомления для чата
+     */
+    suspend fun muteConversation(conversationId: String, until: String? = null): ConversationSummaryDto =
+        httpClient.post("$baseUrl/api/chat/conversations/$conversationId/mute") {
+            if (until != null) {
+                setBody(mapOf("mutedUntil" to until))
+            }
+        }.body()
+
+    /**
+     * Включить уведомления для чата
+     */
+    suspend fun unmuteConversation(conversationId: String): ConversationSummaryDto =
+        httpClient.delete("$baseUrl/api/chat/conversations/$conversationId/mute").body()
+
+    /**
+     * Удалить чат
+     */
+    suspend fun deleteConversation(conversationId: String) {
+        httpClient.delete("$baseUrl/api/chat/conversations/$conversationId")
+    }
+
+    /**
+     * Закрепить чат
+     */
+    suspend fun pinConversation(conversationId: String): ConversationSummaryDto =
+        httpClient.post("$baseUrl/api/chat/conversations/$conversationId/pin").body()
+
+    /**
+     * Открепить чат
+     */
+    suspend fun unpinConversation(conversationId: String): ConversationSummaryDto =
+        httpClient.delete("$baseUrl/api/chat/conversations/$conversationId/pin").body()
+
+    // === Pinned Messages ===
+
+    /**
+     * Получить закреплённые сообщения
+     */
+    suspend fun getPinnedMessages(conversationId: String): List<PinnedMessageDto> =
+        httpClient.get("$baseUrl/api/chat/conversations/$conversationId/pins").body()
+
+    /**
+     * Закрепить сообщение
+     */
+    suspend fun pinMessage(conversationId: String, messageId: String): PinnedMessageDto =
+        httpClient.post("$baseUrl/api/chat/conversations/$conversationId/messages/$messageId/pin").body()
+
+    /**
+     * Открепить сообщение
+     */
+    suspend fun unpinMessage(conversationId: String, messageId: String) {
+        httpClient.delete("$baseUrl/api/chat/conversations/$conversationId/messages/$messageId/pin")
+    }
+
     fun observeChatEvents(): Flow<ChatEventDto> = callbackFlow {
         while (isActive) {
             try {

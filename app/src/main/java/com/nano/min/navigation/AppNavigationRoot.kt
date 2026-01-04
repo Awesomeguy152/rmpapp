@@ -11,6 +11,7 @@ import androidx.navigation3.ui.NavDisplay
 import com.nano.min.network.TokenStorage
 import com.nano.min.screens.LoginScreen
 import com.nano.min.screens.RegisterScreen
+import com.nano.min.screens.ForgotPasswordScreen
 import com.nano.min.screens.AppRootScreen
 import com.nano.min.screens.ProfileScreen
 import com.nano.min.screens.EditProfileScreen
@@ -28,6 +29,11 @@ fun AppNavigationRoot(
         backStack.add(AppRoute())
     }
 
+    fun navigateToLogin() {
+        backStack.clear()
+        backStack.add(LoginRoute)
+    }
+
     LaunchedEffect(Unit) {
         val token = runCatching { tokenStorage.getToken() }.getOrNull()
         if (!token.isNullOrBlank()) {
@@ -43,13 +49,20 @@ fun AppNavigationRoot(
             entry<LoginRoute> { route ->
                 LoginScreen(
                     navigateRegister = { backStack.add(RegisterRoute) },
+                    navigateForgotPassword = { backStack.add(ForgotPasswordRoute) },
                     navigateApp = { navigateToApp() }
                 )
             }
             entry<RegisterRoute> { route ->
                 RegisterScreen(
-                    navigateLogin = { backStack.removeLast(); backStack.add(LoginRoute) },
+                    navigateLogin = { backStack.removeAt(backStack.lastIndex); backStack.add(LoginRoute) },
                     navigateApp = { navigateToApp() }
+                )
+            }
+            entry<ForgotPasswordRoute> { route ->
+                ForgotPasswordScreen(
+                    navigateBack = { backStack.removeLastOrNull() },
+                    navigateToLogin = { navigateToLogin() }
                 )
             }
             entry<AppRoute> {

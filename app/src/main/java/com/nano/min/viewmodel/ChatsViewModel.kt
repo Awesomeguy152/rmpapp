@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
@@ -34,6 +35,12 @@ import java.time.format.DateTimeFormatter
 import java.util.UUID
 
 import com.nano.min.network.MessageStatus
+import com.nano.min.network.PinnedMessageDto
+import com.nano.min.network.ConversationMemberDto
+import com.nano.min.network.ConversationType
+import com.nano.min.data.repository.ChatRepository
+import com.nano.min.data.local.ConversationEntity
+import com.nano.min.data.local.MessageEntity
 
 data class ConversationsUiState(
     val profileId: String? = null,
@@ -52,6 +59,7 @@ data class ConversationsUiState(
 data class ConversationDetailUiState(
     val conversation: ConversationItem? = null,
     val messages: List<MessageItem> = emptyList(),
+    val pinnedMessages: List<PinnedMessageDto> = emptyList(),
     val isLoading: Boolean = false,
     val isLoadingMore: Boolean = false,
     val hasMoreMessages: Boolean = true,
@@ -66,7 +74,8 @@ data class ConversationDetailUiState(
     val searchResults: List<MessageItem> = emptyList(),
     val isSearching: Boolean = false,
     val isRecordingVoice: Boolean = false,
-    val voiceRecordingStartTime: Long = 0L
+    val voiceRecordingStartTime: Long = 0L,
+    val showPinnedMessages: Boolean = false
 )
 
 data class PendingAttachment(
@@ -83,6 +92,9 @@ data class ConversationItem(
     val unreadCount: Long,
     val lastMessageTime: String?,
     val members: List<MemberInfo>,
+    val isPinned: Boolean = false,
+    val isArchived: Boolean = false,
+    val isMuted: Boolean = false,
     val raw: ConversationSummaryDto
 )
 
@@ -90,10 +102,6 @@ data class ReplyInfo(
     val id: String,
     val senderName: String,
     val body: String
-)
-
-data class ForwardInfo(
-    val originalSenderName: String
 )
 
 data class MessageItem(
@@ -107,7 +115,6 @@ data class MessageItem(
     val myReaction: String? = null,
     val status: MessageStatus = MessageStatus.SENT,
     val replyTo: ReplyInfo? = null,
-    val forwardedFrom: ForwardInfo? = null,
     val attachments: List<AttachmentItem> = emptyList()
 )
 
@@ -148,7 +155,8 @@ sealed interface ChatsEvent {
 class ChatsViewModel(
     application: Application,
     private val authService: AuthService,
-    private val chatService: ChatService
+    private val chatService: ChatService,
+    private val chatRepository: ChatRepository
 ) : ViewModelRes(application) {
 
     private val _conversationState = MutableStateFlow(ConversationsUiState(isLoading = true))
@@ -156,6 +164,10 @@ class ChatsViewModel(
 
     private val _detailState = MutableStateFlow(ConversationDetailUiState())
     val detailState: StateFlow<ConversationDetailUiState> = _detailState.asStateFlow()
+    
+    // Состояние сети
+    private val _isOffline = MutableStateFlow(false)
+    val isOffline: StateFlow<Boolean> = _isOffline.asStateFlow()
 
     private val _events = MutableSharedFlow<ChatsEvent>()
     val events: SharedFlow<ChatsEvent> = _events.asSharedFlow()
@@ -196,6 +208,8 @@ class ChatsViewModel(
         _detailState.value = ConversationDetailUiState(conversation = conversation, isLoading = true)
         viewModelScope.launch {
             loadMessagesInternal(conversationId, conversation)
+            // Загружаем закреплённые сообщения
+            loadPinnedMessages(conversationId)
         }
     }
 
@@ -295,25 +309,6 @@ class ChatsViewModel(
     
     fun clearAttachments() {
         _detailState.update { it.copy(pendingAttachments = emptyList()) }
-    }
-    
-    fun forwardMessage(messageId: String, toConversationId: String) {
-        viewModelScope.launch {
-            try {
-                val originalMessage = _detailState.value.messages.find { it.id == messageId }
-                val forwardText = originalMessage?.text ?: ""
-                
-                chatService.sendMessage(
-                    conversationId = toConversationId,
-                    body = forwardText,
-                    forwardedFromMessageId = messageId
-                )
-                _events.emit(ChatsEvent.ShowMessage(getString(R.string.message_forwarded)))
-                refreshConversations()
-            } catch (t: Throwable) {
-                handleNetworkError(t, R.string.error_forward_message)
-            }
-        }
     }
     
     fun sendVoiceMessage(audioData: ByteArray, durationMs: Long) {
@@ -465,6 +460,159 @@ class ChatsViewModel(
             } catch (t: Throwable) {
                 handleNetworkError(t, R.string.error_send_message)
             }
+        }
+    }
+
+    // === Conversation Actions ===
+
+    fun pinConversation(conversationId: String) {
+        viewModelScope.launch {
+            try {
+                val updated = chatService.pinConversation(conversationId)
+                updateConversationInList(updated)
+            } catch (t: Throwable) {
+                handleNetworkError(t, R.string.error_generic)
+            }
+        }
+    }
+
+    fun unpinConversation(conversationId: String) {
+        viewModelScope.launch {
+            try {
+                val updated = chatService.unpinConversation(conversationId)
+                updateConversationInList(updated)
+            } catch (t: Throwable) {
+                handleNetworkError(t, R.string.error_generic)
+            }
+        }
+    }
+
+    fun archiveConversation(conversationId: String) {
+        viewModelScope.launch {
+            try {
+                val updated = chatService.archiveConversation(conversationId)
+                // Удаляем из списка (архивированные не показываются по умолчанию)
+                _conversationState.update { state ->
+                    state.copy(conversations = state.conversations.filter { it.id != conversationId })
+                }
+                _events.emit(ChatsEvent.ShowMessage(getString(R.string.conversation_archived)))
+            } catch (t: Throwable) {
+                handleNetworkError(t, R.string.error_generic)
+            }
+        }
+    }
+
+    fun unarchiveConversation(conversationId: String) {
+        viewModelScope.launch {
+            try {
+                val updated = chatService.unarchiveConversation(conversationId)
+                updateConversationInList(updated)
+                _events.emit(ChatsEvent.ShowMessage(getString(R.string.conversation_unarchived)))
+            } catch (t: Throwable) {
+                handleNetworkError(t, R.string.error_generic)
+            }
+        }
+    }
+
+    fun muteConversation(conversationId: String, until: String? = null) {
+        viewModelScope.launch {
+            try {
+                val updated = chatService.muteConversation(conversationId, until)
+                updateConversationInList(updated)
+                _events.emit(ChatsEvent.ShowMessage(getString(R.string.conversation_muted)))
+            } catch (t: Throwable) {
+                handleNetworkError(t, R.string.error_generic)
+            }
+        }
+    }
+
+    fun unmuteConversation(conversationId: String) {
+        viewModelScope.launch {
+            try {
+                val updated = chatService.unmuteConversation(conversationId)
+                updateConversationInList(updated)
+                _events.emit(ChatsEvent.ShowMessage(getString(R.string.conversation_unmuted)))
+            } catch (t: Throwable) {
+                handleNetworkError(t, R.string.error_generic)
+            }
+        }
+    }
+
+    fun deleteConversation(conversationId: String) {
+        viewModelScope.launch {
+            try {
+                chatService.deleteConversation(conversationId)
+                // Удаляем из списка
+                _conversationState.update { state ->
+                    state.copy(conversations = state.conversations.filter { it.id != conversationId })
+                }
+                // Если это выбранный чат, сбрасываем
+                if (selectedConversationId == conversationId) {
+                    selectedConversationId = null
+                    _detailState.value = ConversationDetailUiState()
+                }
+                _events.emit(ChatsEvent.ShowMessage(getString(R.string.conversation_deleted)))
+            } catch (t: Throwable) {
+                handleNetworkError(t, R.string.error_generic)
+            }
+        }
+    }
+
+    // ====== Закреплённые сообщения ======
+    
+    fun loadPinnedMessages(conversationId: String) {
+        viewModelScope.launch {
+            try {
+                val pinned = chatService.getPinnedMessages(conversationId)
+                _detailState.update { it.copy(pinnedMessages = pinned) }
+            } catch (t: Throwable) {
+                // Ошибки загрузки закреплённых можно игнорировать
+            }
+        }
+    }
+    
+    fun pinMessage(messageId: String) {
+        val conversationId = selectedConversationId ?: return
+        viewModelScope.launch {
+            try {
+                val pinned = chatService.pinMessage(conversationId, messageId)
+                _detailState.update { state ->
+                    state.copy(pinnedMessages = state.pinnedMessages + pinned)
+                }
+                _events.emit(ChatsEvent.ShowMessage(getString(R.string.message_pinned)))
+            } catch (t: Throwable) {
+                handleNetworkError(t, R.string.error_generic)
+            }
+        }
+    }
+    
+    fun unpinMessage(messageId: String) {
+        val conversationId = selectedConversationId ?: return
+        viewModelScope.launch {
+            try {
+                chatService.unpinMessage(conversationId, messageId)
+                _detailState.update { state ->
+                    state.copy(pinnedMessages = state.pinnedMessages.filter { it.messageId != messageId })
+                }
+                _events.emit(ChatsEvent.ShowMessage(getString(R.string.message_unpinned)))
+            } catch (t: Throwable) {
+                handleNetworkError(t, R.string.error_generic)
+            }
+        }
+    }
+    
+    fun togglePinnedMessagesPanel() {
+        _detailState.update { it.copy(showPinnedMessages = !it.showPinnedMessages) }
+    }
+
+    private fun updateConversationInList(updated: ConversationSummaryDto) {
+        val meId = me?.id
+        val item = updated.toConversationItem(meId)
+        _conversationState.update { state ->
+            val newList = state.conversations.map { conv ->
+                if (conv.id == updated.id) item else conv
+            }
+            state.copy(conversations = newList)
         }
     }
 
@@ -767,33 +915,67 @@ class ChatsViewModel(
             loadProfile()
         }
         _conversationState.update { it.copy(isLoading = true, error = null) }
-        try {
-            val meId = me?.id
-            val summaries = chatService.getConversations()
+        
+        val meId = me?.id
+        
+        // Сначала попробуем загрузить с сервера
+        val result = chatRepository.refreshConversations()
+        
+        if (result.isSuccess) {
+            _isOffline.value = false
+            val summaries = result.getOrThrow()
             val items = summaries.map { it.toConversationItem(meId) }
             _conversationState.value = _conversationState.value.copy(
                 isLoading = false,
                 conversations = items,
                 error = null
             )
-
-            val targetId = selectConversation
-            selectedConversationId = targetId
-            if (targetId != null) {
-                val targetConversation = items.find { it.id == targetId }
-                if (targetConversation != null) {
-                    loadMessagesInternal(targetId, targetConversation)
-                } else {
-                    _detailState.value = ConversationDetailUiState()
-                    selectedConversationId = null
-                }
-            } else {
-                _detailState.value = _detailState.value.copy(conversation = null)
+            
+            // Синхронизируем ожидающие сообщения
+            viewModelScope.launch {
+                try {
+                    val synced = chatRepository.syncPendingMessages()
+                    if (synced > 0) {
+                        _events.emit(ChatsEvent.ShowMessage("Synced $synced messages"))
+                    }
+                } catch (_: Exception) {}
             }
-        } catch (t: Throwable) {
-            val errorMessage = t.localizedMessage ?: t.message ?: getString(R.string.error_load_conversations)
-            _conversationState.update { it.copy(isLoading = false, error = errorMessage) }
-            handleNetworkError(t, R.string.error_load_conversations)
+        } else {
+            // Офлайн-режим: загружаем из кеша
+            _isOffline.value = true
+            try {
+                val cachedConversations = chatRepository.getConversations().first()
+                if (cachedConversations.isNotEmpty()) {
+                    val items = cachedConversations.map { it.toConversationItem(meId) }
+                    _conversationState.value = _conversationState.value.copy(
+                        isLoading = false,
+                        conversations = items,
+                        error = getString(R.string.offline_mode)
+                    )
+                } else {
+                    val errorMessage = result.exceptionOrNull()?.localizedMessage 
+                        ?: getString(R.string.error_load_conversations)
+                    _conversationState.update { it.copy(isLoading = false, error = errorMessage) }
+                }
+            } catch (t: Throwable) {
+                val errorMessage = result.exceptionOrNull()?.localizedMessage 
+                    ?: getString(R.string.error_load_conversations)
+                _conversationState.update { it.copy(isLoading = false, error = errorMessage) }
+            }
+        }
+
+        val targetId = selectConversation
+        selectedConversationId = targetId
+        if (targetId != null) {
+            val targetConversation = _conversationState.value.conversations.find { it.id == targetId }
+            if (targetConversation != null) {
+                loadMessagesInternal(targetId, targetConversation)
+            } else {
+                _detailState.value = ConversationDetailUiState()
+                selectedConversationId = null
+            }
+        } else {
+            _detailState.value = _detailState.value.copy(conversation = null)
         }
     }
 
@@ -909,6 +1091,9 @@ class ChatsViewModel(
             unreadCount = unreadCount,
             lastMessageTime = lastTime,
             members = formattedMembers,
+            isPinned = pinnedAt != null,
+            isArchived = archivedAt != null,
+            isMuted = isMuted,
             raw = this
         )
     }
@@ -934,9 +1119,6 @@ class ChatsViewModel(
                 senderName = it.senderName,
                 body = it.body
             )
-        },
-        forwardedFrom = forwardedFrom?.let {
-            ForwardInfo(originalSenderName = it.originalSenderName)
         },
         attachments = attachments.map { 
             AttachmentItem(
@@ -1066,6 +1248,54 @@ class ChatsViewModel(
         }
 
         _events.emit(ChatsEvent.ShowMessage(message))
+    }
+    
+    /**
+     * Конвертирует ConversationEntity в ConversationItem для отображения из кеша
+     */
+    private fun ConversationEntity.toConversationItem(meId: String?): ConversationItem {
+        val members: List<ConversationMemberDto> = try {
+            json.decodeFromString(membersJson)
+        } catch (_: Exception) {
+            emptyList()
+        }
+        
+        val memberInfos = members.map { member ->
+            MemberInfo(
+                id = member.userId,
+                name = member.displayName ?: member.username ?: member.email?.substringBefore("@") ?: "User",
+                avatarUrl = member.avatarUrl,
+                isOnline = false, // Нет информации об онлайне в кеше
+                joinedAt = member.joinedAt
+            )
+        }
+        
+        val otherMember = memberInfos.firstOrNull { it.id != meId }
+        val displayTitle = if (type == "DIRECT") {
+            otherMember?.name ?: topic ?: "Chat"
+        } else {
+            topic ?: "Group chat"
+        }
+        
+        return ConversationItem(
+            id = id,
+            title = displayTitle,
+            subtitle = "", // No last message in entity
+            unreadCount = unreadCount,
+            lastMessageTime = null,
+            members = memberInfos,
+            isPinned = pinnedAt != null,
+            isArchived = isArchived,
+            isMuted = isMuted,
+            raw = ConversationSummaryDto(
+                id = id,
+                type = if (type == "DIRECT") ConversationType.DIRECT else ConversationType.GROUP,
+                topic = topic,
+                createdBy = createdBy,
+                createdAt = createdAt,
+                members = members
+            )
+        )
     }
 }
 

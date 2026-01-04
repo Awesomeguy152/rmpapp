@@ -48,6 +48,7 @@ import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Stop
@@ -119,6 +120,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.nano.min.R
+import com.nano.min.ui.components.FullScreenBitmapViewer
+import com.nano.min.ui.components.FullScreenImageViewer
 import com.nano.min.viewmodel.ChatsEvent
 import com.nano.min.viewmodel.ChatsViewModel
 import com.nano.min.viewmodel.ConversationDetailUiState
@@ -131,6 +134,9 @@ import com.nano.min.viewmodel.MemberInfo
 import com.nano.min.viewmodel.PendingAttachment
 import com.nano.min.network.ConversationType
 import com.nano.min.network.MessageStatus
+import com.nano.min.ui.components.SwipeableListItem
+import com.nano.min.ui.components.ConversationActionsSheet
+import com.nano.min.ui.components.SwipeAction
 import org.koin.androidx.compose.koinViewModel
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -366,11 +372,13 @@ fun AppRootScreen(
 							onClearSearch = viewModel::clearSearch,
 							onAddAttachment = viewModel::addAttachment,
 							onRemoveAttachment = viewModel::removeAttachment,
-							onForwardMessage = viewModel::forwardMessage,
 							onSendVoiceMessage = viewModel::sendVoiceMessage,
 							onStartVoiceRecording = viewModel::startVoiceRecording,
 							onStopVoiceRecording = viewModel::stopVoiceRecording,
 							onCancelVoiceRecording = viewModel::cancelVoiceRecording,
+							onPinMessage = viewModel::pinMessage,
+							onUnpinMessage = viewModel::unpinMessage,
+							onTogglePinnedPanel = viewModel::togglePinnedMessagesPanel,
 							conversations = conversationState.conversations,
 							onBack = { viewModel.clearConversationSelection() },
 							modifier = Modifier.fillMaxSize()
@@ -382,6 +390,10 @@ fun AppRootScreen(
 							onCreateConversation = { showCreateSheet = true },
 							onRefresh = { viewModel.refreshConversations() },
 							onSelectConversation = { viewModel.selectConversation(it) },
+							onPinConversation = { viewModel.pinConversation(it) },
+							onArchiveConversation = { viewModel.archiveConversation(it) },
+							onMuteConversation = { viewModel.muteConversation(it) },
+							onDeleteConversation = { viewModel.deleteConversation(it) },
 							modifier = Modifier.fillMaxSize()
 						)
 					}
@@ -393,6 +405,10 @@ fun AppRootScreen(
 							onCreateConversation = { showCreateSheet = true },
 							onRefresh = { viewModel.refreshConversations() },
 							onSelectConversation = { viewModel.selectConversation(it) },
+							onPinConversation = { viewModel.pinConversation(it) },
+							onArchiveConversation = { viewModel.archiveConversation(it) },
+							onMuteConversation = { viewModel.muteConversation(it) },
+							onDeleteConversation = { viewModel.deleteConversation(it) },
 							modifier = Modifier
 								.widthIn(max = 360.dp)
 								.fillMaxHeight()
@@ -424,11 +440,13 @@ fun AppRootScreen(
 							onClearSearch = viewModel::clearSearch,
 							onAddAttachment = viewModel::addAttachment,
 							onRemoveAttachment = viewModel::removeAttachment,
-							onForwardMessage = viewModel::forwardMessage,
 							onSendVoiceMessage = viewModel::sendVoiceMessage,
 							onStartVoiceRecording = viewModel::startVoiceRecording,
 							onStopVoiceRecording = viewModel::stopVoiceRecording,
 							onCancelVoiceRecording = viewModel::cancelVoiceRecording,
+							onPinMessage = viewModel::pinMessage,
+							onUnpinMessage = viewModel::unpinMessage,
+							onTogglePinnedPanel = viewModel::togglePinnedMessagesPanel,
 							conversations = conversationState.conversations,
 							onBack = null,
 							modifier = Modifier.weight(1f)
@@ -447,6 +465,10 @@ private fun ConversationListPanel(
 	onCreateConversation: () -> Unit,
 	onRefresh: () -> Unit,
 	onSelectConversation: (String) -> Unit,
+	onPinConversation: (String) -> Unit,
+	onArchiveConversation: (String) -> Unit,
+	onMuteConversation: (String) -> Unit,
+	onDeleteConversation: (String) -> Unit,
 	modifier: Modifier = Modifier
 ) {
 	val colorScheme = MaterialTheme.colorScheme
@@ -599,6 +621,9 @@ private fun ConversationListPanel(
 
 				else -> {
 					val swipeRefreshState = rememberSwipeRefreshState(isRefreshing = state.isLoading)
+					// Состояние для bottom sheet с действиями
+					var showActionsForConversation by remember { mutableStateOf<ConversationItem?>(null) }
+					
 					SwipeRefresh(
 						state = swipeRefreshState,
 						onRefresh = onRefresh,
@@ -610,14 +635,44 @@ private fun ConversationListPanel(
 							verticalArrangement = Arrangement.spacedBy(12.dp)
 						) {
 							items(state.conversations, key = { it.id }) { conversation ->
-								ConversationListItem(
-									conversation = conversation,
-									currentUserId = state.profileId,
-									isSelected = conversation.id == selectedConversationId,
-									onClick = { onSelectConversation(conversation.id) }
-								)
+								SwipeableListItem(
+									isPinned = conversation.isPinned,
+									isArchived = conversation.isArchived,
+									isMuted = conversation.isMuted,
+									onSwipeAction = { action ->
+										when (action) {
+											SwipeAction.PIN, SwipeAction.UNPIN -> onPinConversation(conversation.id)
+											SwipeAction.ARCHIVE, SwipeAction.UNARCHIVE -> onArchiveConversation(conversation.id)
+											SwipeAction.MUTE, SwipeAction.UNMUTE -> onMuteConversation(conversation.id)
+											SwipeAction.DELETE -> onDeleteConversation(conversation.id)
+										}
+									}
+								) {
+									ConversationListItem(
+										conversation = conversation,
+										currentUserId = state.profileId,
+										isSelected = conversation.id == selectedConversationId,
+										onClick = { onSelectConversation(conversation.id) },
+										onLongClick = { showActionsForConversation = conversation }
+									)
+								}
 							}
 						}
+					}
+					
+					// Bottom sheet для действий над чатом
+					showActionsForConversation?.let { conv ->
+						ConversationActionsSheet(
+							isPinned = conv.isPinned,
+							isArchived = conv.isArchived,
+							isMuted = conv.isMuted,
+							isOwner = true, // Для direct всегда владелец
+							onDismiss = { showActionsForConversation = null },
+							onPin = { onPinConversation(conv.id) },
+							onArchive = { onArchiveConversation(conv.id) },
+							onMute = { onMuteConversation(conv.id) },
+							onDelete = { onDeleteConversation(conv.id) }
+						)
 					}
 				}
 			}
@@ -625,12 +680,14 @@ private fun ConversationListPanel(
 	}
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ConversationListItem(
 	conversation: ConversationItem,
 	currentUserId: String?,
 	isSelected: Boolean,
-	onClick: () -> Unit
+	onClick: () -> Unit,
+	onLongClick: () -> Unit = {}
 ) {
 	val colorScheme = MaterialTheme.colorScheme
 	val accentColor = if (isSelected) colorScheme.primary else colorScheme.primary.copy(alpha = 0.18f)
@@ -643,7 +700,10 @@ private fun ConversationListItem(
 		border = BorderStroke(1.dp, if (isSelected) colorScheme.primary.copy(alpha = 0.45f) else colorScheme.outlineVariant.copy(alpha = 0.35f)),
 		modifier = Modifier
 			.fillMaxWidth()
-			.clickable(onClick = onClick)
+			.combinedClickable(
+				onClick = onClick,
+				onLongClick = onLongClick
+			)
 	) {
 		Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
 			Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -1119,11 +1179,13 @@ private fun ConversationDetailPanel(
 	onClearSearch: () -> Unit,
 	onAddAttachment: (android.net.Uri, String, String, Long) -> Unit,
 	onRemoveAttachment: (android.net.Uri) -> Unit,
-	onForwardMessage: (messageId: String, toConversationId: String) -> Unit,
 	onSendVoiceMessage: (ByteArray, Long) -> Unit,
 	onStartVoiceRecording: () -> Unit,
 	onStopVoiceRecording: () -> Unit,
 	onCancelVoiceRecording: () -> Unit,
+	onPinMessage: (String) -> Unit,
+	onUnpinMessage: (String) -> Unit,
+	onTogglePinnedPanel: () -> Unit,
 	conversations: List<ConversationItem>,
 	onBack: (() -> Unit)?,
 	modifier: Modifier = Modifier
@@ -1146,7 +1208,7 @@ private fun ConversationDetailPanel(
 	}
 
 	var editingMessageId by remember { mutableStateOf<String?>(null) }
-	var forwardingMessageId by remember { mutableStateOf<String?>(null) }
+	var fullScreenImageBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
 	val haptic = LocalHapticFeedback.current
 	val colorScheme = MaterialTheme.colorScheme
 	val context = LocalContext.current
@@ -1266,52 +1328,6 @@ private fun ConversationDetailPanel(
 		voiceRecordingFile = null
 		onCancelVoiceRecording()
 	}
-	
-	// Forward dialog
-	if (forwardingMessageId != null) {
-		AlertDialog(
-			onDismissRequest = { forwardingMessageId = null },
-			title = { Text(stringResource(R.string.forward_to)) },
-			text = {
-				LazyColumn(
-					modifier = Modifier.heightIn(max = 300.dp),
-					verticalArrangement = Arrangement.spacedBy(8.dp)
-				) {
-					items(
-						items = conversations.filter { it.id != conversation.id },
-						key = { it.id }
-					) { conv ->
-						Surface(
-							onClick = {
-								onForwardMessage(forwardingMessageId!!, conv.id)
-								forwardingMessageId = null
-							},
-							shape = RoundedCornerShape(12.dp),
-							color = colorScheme.surfaceVariant,
-							modifier = Modifier.fillMaxWidth()
-						) {
-							Row(
-								modifier = Modifier.padding(12.dp),
-								verticalAlignment = Alignment.CenterVertically
-							) {
-								Text(
-									text = conv.title,
-									style = MaterialTheme.typography.bodyMedium,
-									modifier = Modifier.weight(1f)
-								)
-							}
-						}
-					}
-				}
-			},
-			confirmButton = {},
-			dismissButton = {
-				TextButton(onClick = { forwardingMessageId = null }) {
-					Text(stringResource(android.R.string.cancel))
-				}
-			}
-		)
-	}
 
 	// If editing, update input field with message text
 	LaunchedEffect(editingMessageId) {
@@ -1326,11 +1342,12 @@ private fun ConversationDetailPanel(
 	val isGroupConversation = conversation.raw.type == ConversationType.GROUP
 	val isOwner = currentUserId != null && conversation.raw.createdBy == currentUserId
 	val listState = rememberLazyListState()
-	val headerItemsCount = (if (onBack != null) 1 else 0) +
-		1 +
+	// Header теперь вне LazyColumn, считаем только оставшиеся элементы
+	val headerItemsCount = 
 		(if (isGroupConversation) 1 else if (conversation.members.isNotEmpty()) 1 else 0) +
 		(if (state.isLoading) 1 else 0) +
-		(if (state.error != null) 1 else 0)
+		(if (state.error != null) 1 else 0) +
+		(if (state.isSearchMode) 1 else 0)
 
 	LaunchedEffect(state.messages.size) {
 		if (state.messages.isNotEmpty()) {
@@ -1368,6 +1385,118 @@ private fun ConversationDetailPanel(
 				.padding(20.dp),
 			verticalArrangement = Arrangement.spacedBy(16.dp)
 		) {
+			// Фиксированный header
+			if (onBack != null) {
+				Row(verticalAlignment = Alignment.CenterVertically) {
+					IconButton(onClick = onBack) {
+						Icon(
+							imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+							contentDescription = stringResource(R.string.conversation_back)
+						)
+					}
+					Text(
+						text = stringResource(R.string.conversation_back),
+						style = MaterialTheme.typography.titleMedium,
+						modifier = Modifier.weight(1f)
+					)
+					// Кнопка закреплённых сообщений
+					if (state.pinnedMessages.isNotEmpty()) {
+						Badge(
+							containerColor = colorScheme.primary,
+							contentColor = colorScheme.onPrimary
+						) {
+							Text(state.pinnedMessages.size.toString())
+						}
+					}
+					IconButton(onClick = onTogglePinnedPanel) {
+						Icon(
+							imageVector = Icons.Default.PushPin,
+							contentDescription = stringResource(R.string.pinned_messages),
+							tint = if (state.showPinnedMessages) colorScheme.primary else colorScheme.onSurfaceVariant
+						)
+					}
+				}
+			}
+			
+			// Фиксированная панель закреплённых сообщений
+			if (state.showPinnedMessages) {
+				Surface(
+					shape = RoundedCornerShape(16.dp),
+					color = colorScheme.primaryContainer.copy(alpha = 0.5f),
+					border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.3f)),
+					modifier = Modifier.fillMaxWidth()
+				) {
+					Column(modifier = Modifier.padding(12.dp)) {
+						Row(
+							verticalAlignment = Alignment.CenterVertically,
+							horizontalArrangement = Arrangement.spacedBy(8.dp)
+						) {
+							Icon(
+								imageVector = Icons.Default.PushPin,
+								contentDescription = null,
+								tint = colorScheme.primary,
+								modifier = Modifier.size(20.dp)
+							)
+							Text(
+								text = stringResource(R.string.pinned_messages),
+								style = MaterialTheme.typography.titleSmall,
+								color = colorScheme.primary
+							)
+						}
+						Spacer(modifier = Modifier.height(8.dp))
+						if (state.pinnedMessages.isEmpty()) {
+							Text(
+								text = stringResource(R.string.no_pinned_messages),
+								style = MaterialTheme.typography.bodySmall,
+								color = colorScheme.onSurfaceVariant
+							)
+						} else {
+							state.pinnedMessages.forEach { pinned ->
+								Surface(
+									shape = RoundedCornerShape(12.dp),
+									color = colorScheme.surface,
+									modifier = Modifier
+										.fillMaxWidth()
+										.padding(vertical = 4.dp)
+										.clickable { onUnpinMessage(pinned.messageId) }
+								) {
+									Row(
+										modifier = Modifier.padding(10.dp),
+										verticalAlignment = Alignment.Top,
+										horizontalArrangement = Arrangement.spacedBy(8.dp)
+									) {
+										Column(modifier = Modifier.weight(1f)) {
+											Text(
+												text = pinned.senderName,
+												style = MaterialTheme.typography.labelMedium,
+												color = colorScheme.primary
+											)
+											Text(
+												text = pinned.messageBody,
+												style = MaterialTheme.typography.bodySmall,
+												maxLines = 2,
+												overflow = TextOverflow.Ellipsis
+											)
+										}
+										IconButton(
+											onClick = { onUnpinMessage(pinned.messageId) },
+											modifier = Modifier.size(24.dp)
+										) {
+											Icon(
+												imageVector = Icons.Default.Clear,
+												contentDescription = stringResource(R.string.unpin_message),
+												modifier = Modifier.size(16.dp),
+												tint = colorScheme.onSurfaceVariant
+											)
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+			
 			LazyColumn(
 				modifier = Modifier
 					.weight(1f)
@@ -1376,22 +1505,6 @@ private fun ConversationDetailPanel(
 				contentPadding = PaddingValues(bottom = 16.dp),
 				verticalArrangement = Arrangement.spacedBy(14.dp)
 			) {
-			if (onBack != null) {
-				item("back_${conversation.id}") {
-					Row(verticalAlignment = Alignment.CenterVertically) {
-						IconButton(onClick = onBack) {
-							Icon(
-								imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-								contentDescription = stringResource(R.string.conversation_back)
-							)
-						}
-						Text(
-							text = stringResource(R.string.conversation_back),
-							style = MaterialTheme.typography.titleMedium
-						)
-					}
-				}
-			}
 
 			// Search bar
 			if (state.isSearchMode) {
@@ -1616,7 +1729,12 @@ private fun ConversationDetailPanel(
 						},
 						onDelete = { onDeleteMessage(message.id) },
 						onReply = { onReplyToMessage(message) },
-						onForward = { forwardingMessageId = message.id }
+						onPin = { 
+							val isPinned = state.pinnedMessages.any { it.messageId == message.id }
+							if (isPinned) onUnpinMessage(message.id) else onPinMessage(message.id)
+						},
+						isPinned = state.pinnedMessages.any { it.messageId == message.id },
+						onImageClick = { bitmap -> fullScreenImageBitmap = bitmap }
 					)
 				}
 			}
@@ -1927,6 +2045,14 @@ private fun ConversationDetailPanel(
 			}
 		}
 	}
+	
+	// Fullscreen image viewer
+	fullScreenImageBitmap?.let { bitmap ->
+		FullScreenBitmapViewer(
+			bitmap = bitmap,
+			onDismiss = { fullScreenImageBitmap = null }
+		)
+	}
 }
 }
 
@@ -2141,7 +2267,9 @@ private fun MessageBubble(
 	onEdit: (String) -> Unit,
 	onDelete: () -> Unit,
 	onReply: () -> Unit = {},
-	onForward: () -> Unit = {}
+	onPin: () -> Unit = {},
+	isPinned: Boolean = false,
+	onImageClick: (android.graphics.Bitmap) -> Unit = {}
 ) {
 	var showReactions by remember(message.id) { mutableStateOf(false) }
 	var showMenu by remember { mutableStateOf(false) }
@@ -2208,27 +2336,6 @@ private fun MessageBubble(
 						}
 					}
 					
-					// Forwarded indicator
-					if (message.forwardedFrom != null) {
-						Row(
-							modifier = Modifier.padding(bottom = 4.dp),
-							verticalAlignment = Alignment.CenterVertically
-						) {
-							Icon(
-								imageVector = Icons.AutoMirrored.Filled.Send,
-								contentDescription = null,
-								modifier = Modifier.size(12.dp),
-								tint = colorScheme.primary
-							)
-							Spacer(modifier = Modifier.width(4.dp))
-							Text(
-								text = "Forwarded from ${message.forwardedFrom.originalSenderName}",
-								style = MaterialTheme.typography.labelSmall,
-								color = colorScheme.primary
-							)
-						}
-					}
-					
 					if (!message.isMine && message.senderName != null) {
 						Text(
 							text = message.senderName,
@@ -2264,6 +2371,7 @@ private fun MessageBubble(
 											modifier = Modifier
 												.fillMaxWidth()
 												.clip(RoundedCornerShape(8.dp))
+												.clickable { onImageClick(bitmap) }
 										)
 										Spacer(modifier = Modifier.height(4.dp))
 									}
@@ -2336,12 +2444,12 @@ private fun MessageBubble(
 					leadingIcon = { Icon(Icons.AutoMirrored.Filled.Reply, null) }
 				)
 				DropdownMenuItem(
-					text = { Text(stringResource(R.string.forward_message)) },
+					text = { Text(if (isPinned) "Unpin" else "Pin") },
 					onClick = {
 						showMenu = false
-						onForward()
+						onPin()
 					},
-					leadingIcon = { Icon(Icons.AutoMirrored.Filled.Send, null) }
+					leadingIcon = { Icon(Icons.Default.PushPin, null) }
 				)
 				if (message.isMine) {
 					DropdownMenuItem(
