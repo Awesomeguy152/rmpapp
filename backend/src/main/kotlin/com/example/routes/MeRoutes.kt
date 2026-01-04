@@ -5,19 +5,12 @@ import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
-import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import kotlinx.serialization.Serializable
 import java.util.UUID
 
-@Serializable
-data class UpdateProfileRq(
-    val username: String? = null,
-    val displayName: String? = null,
-    val bio: String? = null,
-    val avatarUrl: String? = null
-)
+import com.example.schema.UpdateProfileRq
+import io.ktor.server.request.receive
 
 fun Route.meRoutes() {
     val service = UserService()
@@ -43,20 +36,11 @@ fun Route.meRoutes() {
             val userId = principal.subject?.toUuidOrNull()
                 ?: return@patch call.respond(HttpStatusCode.BadRequest, mapOf("error" to "invalid_subject"))
 
-            val rq = call.receive<UpdateProfileRq>()
+            val req = call.receive<UpdateProfileRq>()
+            val updated = service.updateProfile(userId, req.username, req.displayName, req.bio, req.avatarUrl)
+                ?: return@patch call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "update_failed"))
 
-            try {
-                val updated = service.updateProfile(
-                    userId = userId,
-                    username = rq.username,
-                    displayName = rq.displayName,
-                    bio = rq.bio,
-                    avatarUrl = rq.avatarUrl
-                )
-                call.respond(updated)
-            } catch (e: IllegalArgumentException) {
-                call.respond(HttpStatusCode.BadRequest, mapOf("error" to (e.message ?: "invalid_request")))
-            }
+            call.respond(updated)
         }
     }
 }

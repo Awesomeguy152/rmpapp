@@ -4,6 +4,7 @@ import com.example.schema.MessageTag
 import com.example.services.ChatEventBroadcaster
 import com.example.services.ChatEventPayload
 import com.example.services.ChatService
+import com.example.services.PushNotificationService
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
@@ -18,6 +19,7 @@ import io.ktor.websocket.close
 import io.ktor.websocket.send
 import kotlinx.serialization.Serializable
 import java.util.UUID
+import kotlinx.coroutines.launch
 
 @Serializable
 data class CreateDirectConversationRq(
@@ -28,7 +30,9 @@ data class CreateDirectConversationRq(
 @Serializable
 data class SendMessageRq(
     val body: String,
-    val attachments: List<AttachmentRq> = emptyList()
+    val attachments: List<AttachmentRq> = emptyList(),
+    val replyToMessageId: String? = null,
+    val forwardedFromMessageId: String? = null
 )
 
 @Serializable
@@ -80,8 +84,14 @@ data class MarkReadRq(
     val messageId: String? = null
 )
 
+@Serializable
+data class MuteConversationRq(
+    val mutedUntil: String? = null // ISO-8601 timestamp, null = forever
+)
+
 fun Route.chatRoutes() {
     val service = ChatService()
+    val pushService = PushNotificationService()
 
     authenticate("auth-jwt") {
         route("/api/chat") {
@@ -111,8 +121,9 @@ fun Route.chatRoutes() {
 
                 val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 50
                 val offset = call.request.queryParameters["offset"]?.toLongOrNull() ?: 0L
+                val includeArchived = call.request.queryParameters["includeArchived"]?.toBooleanStrictOrNull() ?: false
 
-                val conversations = service.listConversations(userId, limit, offset)
+                val conversations = service.listConversations(userId, limit, offset, includeArchived)
                 call.respond(HttpStatusCode.OK, conversations)
             }
 
@@ -172,6 +183,181 @@ fun Route.chatRoutes() {
                 }
 
                 call.respond(HttpStatusCode.OK, conversation)
+            }
+
+            // Archive conversation
+            post("/conversations/{id}/archive") {
+                val principal = call.principalOrUnauthorized() ?: return@post
+                val requesterId = principal.userIdOrNull()
+                    ?: return@post call.respondError(HttpStatusCode.BadRequest, "invalid_subject")
+
+                val conversationId = call.parameters["id"].toUuidOrNull()
+                    ?: return@post call.respondError(HttpStatusCode.BadRequest, "invalid_conversation_id")
+
+                val conversation = try {
+                    service.archiveConversation(conversationId, requesterId)
+                } catch (iae: IllegalArgumentException) {
+                    return@post call.respondError(HttpStatusCode.BadRequest, iae.message ?: "invalid_request")
+                } catch (nse: NoSuchElementException) {
+                    return@post call.respondError(HttpStatusCode.NotFound, nse.message ?: "conversation_not_found")
+                }
+
+                call.respond(HttpStatusCode.OK, conversation)
+            }
+
+            // Unarchive conversation
+            delete("/conversations/{id}/archive") {
+                val principal = call.principalOrUnauthorized() ?: return@delete
+                val requesterId = principal.userIdOrNull()
+                    ?: return@delete call.respondError(HttpStatusCode.BadRequest, "invalid_subject")
+
+                val conversationId = call.parameters["id"].toUuidOrNull()
+                    ?: return@delete call.respondError(HttpStatusCode.BadRequest, "invalid_conversation_id")
+
+                val conversation = try {
+                    service.unarchiveConversation(conversationId, requesterId)
+                } catch (iae: IllegalArgumentException) {
+                    return@delete call.respondError(HttpStatusCode.BadRequest, iae.message ?: "invalid_request")
+                } catch (nse: NoSuchElementException) {
+                    return@delete call.respondError(HttpStatusCode.NotFound, nse.message ?: "conversation_not_found")
+                }
+
+                call.respond(HttpStatusCode.OK, conversation)
+            }
+
+            // Mute conversation
+            post("/conversations/{id}/mute") {
+                val principal = call.principalOrUnauthorized() ?: return@post
+                val requesterId = principal.userIdOrNull()
+                    ?: return@post call.respondError(HttpStatusCode.BadRequest, "invalid_subject")
+
+                val conversationId = call.parameters["id"].toUuidOrNull()
+                    ?: return@post call.respondError(HttpStatusCode.BadRequest, "invalid_conversation_id")
+
+                val rq = try { call.receive<MuteConversationRq>() } catch (e: Exception) { MuteConversationRq() }
+                val untilInstant = rq.mutedUntil?.let { java.time.Instant.parse(it) }
+
+                val conversation = try {
+                    service.muteConversation(conversationId, requesterId, untilInstant)
+                } catch (iae: IllegalArgumentException) {
+                    return@post call.respondError(HttpStatusCode.BadRequest, iae.message ?: "invalid_request")
+                } catch (nse: NoSuchElementException) {
+                    return@post call.respondError(HttpStatusCode.NotFound, nse.message ?: "conversation_not_found")
+                }
+
+                call.respond(HttpStatusCode.OK, conversation)
+            }
+
+            // Unmute conversation
+            delete("/conversations/{id}/mute") {
+                val principal = call.principalOrUnauthorized() ?: return@delete
+                val requesterId = principal.userIdOrNull()
+                    ?: return@delete call.respondError(HttpStatusCode.BadRequest, "invalid_subject")
+
+                val conversationId = call.parameters["id"].toUuidOrNull()
+                    ?: return@delete call.respondError(HttpStatusCode.BadRequest, "invalid_conversation_id")
+
+                val conversation = try {
+                    service.unmuteConversation(conversationId, requesterId)
+                } catch (iae: IllegalArgumentException) {
+                    return@delete call.respondError(HttpStatusCode.BadRequest, iae.message ?: "invalid_request")
+                } catch (nse: NoSuchElementException) {
+                    return@delete call.respondError(HttpStatusCode.NotFound, nse.message ?: "conversation_not_found")
+                }
+
+                call.respond(HttpStatusCode.OK, conversation)
+            }
+
+            // Delete conversation
+            delete("/conversations/{id}") {
+                val principal = call.principalOrUnauthorized() ?: return@delete
+                val requesterId = principal.userIdOrNull()
+                    ?: return@delete call.respondError(HttpStatusCode.BadRequest, "invalid_subject")
+
+                val conversationId = call.parameters["id"].toUuidOrNull()
+                    ?: return@delete call.respondError(HttpStatusCode.BadRequest, "invalid_conversation_id")
+
+                try {
+                    service.deleteConversation(conversationId, requesterId)
+                } catch (iae: IllegalArgumentException) {
+                    return@delete call.respondError(HttpStatusCode.BadRequest, iae.message ?: "invalid_request")
+                } catch (nse: NoSuchElementException) {
+                    return@delete call.respondError(HttpStatusCode.NotFound, nse.message ?: "conversation_not_found")
+                } catch (e: IllegalStateException) {
+                    return@delete call.respondError(HttpStatusCode.Forbidden, e.message ?: "access_denied")
+                }
+
+                call.respond(HttpStatusCode.NoContent)
+            }
+
+            // === Pinned Messages ===
+
+            // Get pinned messages
+            get("/conversations/{id}/pins") {
+                val principal = call.principalOrUnauthorized() ?: return@get
+                val requesterId = principal.userIdOrNull()
+                    ?: return@get call.respondError(HttpStatusCode.BadRequest, "invalid_subject")
+
+                val conversationId = call.parameters["id"].toUuidOrNull()
+                    ?: return@get call.respondError(HttpStatusCode.BadRequest, "invalid_conversation_id")
+
+                val pins = try {
+                    service.getPinnedMessages(conversationId, requesterId)
+                } catch (iae: IllegalArgumentException) {
+                    return@get call.respondError(HttpStatusCode.BadRequest, iae.message ?: "invalid_request")
+                } catch (nse: NoSuchElementException) {
+                    return@get call.respondError(HttpStatusCode.NotFound, nse.message ?: "conversation_not_found")
+                }
+
+                call.respond(HttpStatusCode.OK, pins)
+            }
+
+            // Pin a message
+            post("/conversations/{conversationId}/messages/{messageId}/pin") {
+                val principal = call.principalOrUnauthorized() ?: return@post
+                val requesterId = principal.userIdOrNull()
+                    ?: return@post call.respondError(HttpStatusCode.BadRequest, "invalid_subject")
+
+                val conversationId = call.parameters["conversationId"].toUuidOrNull()
+                    ?: return@post call.respondError(HttpStatusCode.BadRequest, "invalid_conversation_id")
+
+                val messageId = call.parameters["messageId"].toUuidOrNull()
+                    ?: return@post call.respondError(HttpStatusCode.BadRequest, "invalid_message_id")
+
+                val pin = try {
+                    service.pinMessage(conversationId, messageId, requesterId)
+                } catch (iae: IllegalArgumentException) {
+                    return@post call.respondError(HttpStatusCode.BadRequest, iae.message ?: "invalid_request")
+                } catch (nse: NoSuchElementException) {
+                    return@post call.respondError(HttpStatusCode.NotFound, nse.message ?: "not_found")
+                } catch (e: IllegalStateException) {
+                    return@post call.respondError(HttpStatusCode.BadRequest, e.message ?: "error")
+                }
+
+                call.respond(HttpStatusCode.OK, pin)
+            }
+
+            // Unpin a message
+            delete("/conversations/{conversationId}/messages/{messageId}/pin") {
+                val principal = call.principalOrUnauthorized() ?: return@delete
+                val requesterId = principal.userIdOrNull()
+                    ?: return@delete call.respondError(HttpStatusCode.BadRequest, "invalid_subject")
+
+                val conversationId = call.parameters["conversationId"].toUuidOrNull()
+                    ?: return@delete call.respondError(HttpStatusCode.BadRequest, "invalid_conversation_id")
+
+                val messageId = call.parameters["messageId"].toUuidOrNull()
+                    ?: return@delete call.respondError(HttpStatusCode.BadRequest, "invalid_message_id")
+
+                try {
+                    service.unpinMessage(conversationId, messageId, requesterId)
+                } catch (iae: IllegalArgumentException) {
+                    return@delete call.respondError(HttpStatusCode.BadRequest, iae.message ?: "invalid_request")
+                } catch (nse: NoSuchElementException) {
+                    return@delete call.respondError(HttpStatusCode.NotFound, nse.message ?: "not_found")
+                }
+
+                call.respond(HttpStatusCode.NoContent)
             }
 
             post("/conversations/direct") {
@@ -380,7 +566,9 @@ fun Route.chatRoutes() {
                         conversationId,
                         senderId,
                         rq.body,
-                        rq.attachments.map { it.toAttachmentInput() }
+                        rq.attachments.map { it.toAttachmentInput() },
+                        rq.replyToMessageId?.toUuidOrNull(),
+                        rq.forwardedFromMessageId?.toUuidOrNull()
                     )
                 } catch (nse: NoSuchElementException) {
                     return@post call.respondError(HttpStatusCode.NotFound, nse.message ?: "conversation_not_found")
@@ -400,6 +588,26 @@ fun Route.chatRoutes() {
                         message = result
                     )
                 )
+
+                // Отправляем push-уведомления получателям (кроме отправителя)
+                launch {
+                    val recipientIds = service.listConversationMemberIds(conversationId)
+                        .filter { it != senderId }
+                    
+                    val senderName = result.senderId.take(8) // TODO: получить имя отправителя
+                    val messagePreview = if (result.body.length > 50) {
+                        result.body.take(50) + "..."
+                    } else {
+                        result.body
+                    }
+                    
+                    pushService.sendToUsers(
+                        userIds = recipientIds,
+                        title = "Новое сообщение",
+                        body = messagePreview,
+                        data = mapOf("conversationId" to conversationId.toString())
+                    )
+                }
 
                 call.respond(HttpStatusCode.Created, result)
             }

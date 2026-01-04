@@ -36,6 +36,38 @@ object ConversationPins : UUIDTable("conversation_pins") {
     }
 }
 
+object ConversationArchives : UUIDTable("conversation_archives") {
+    val conversation = reference("conversation_id", Conversations)
+    val user = reference("user_id", UserTable)
+    val archivedAt = timestamp("archived_at").defaultExpression(CurrentTimestamp())
+
+    init {
+        index(true, conversation, user)
+    }
+}
+
+object ConversationMutes : UUIDTable("conversation_mutes") {
+    val conversation = reference("conversation_id", Conversations)
+    val user = reference("user_id", UserTable)
+    val mutedUntil = timestamp("muted_until").nullable() // null = forever
+    val mutedAt = timestamp("muted_at").defaultExpression(CurrentTimestamp())
+
+    init {
+        index(true, conversation, user)
+    }
+}
+
+object PinnedMessages : UUIDTable("pinned_messages") {
+    val conversation = reference("conversation_id", Conversations)
+    val message = reference("message_id", Messages)
+    val pinnedBy = reference("pinned_by", UserTable)
+    val pinnedAt = timestamp("pinned_at").defaultExpression(CurrentTimestamp())
+
+    init {
+        index(true, conversation, message)
+    }
+}
+
 enum class MessageTag { NONE, ANSWER, MEETING, IMPORTANT }
 enum class MessageStatus { SENT, DELIVERED, READ }
 
@@ -44,6 +76,8 @@ object Messages : UUIDTable("messages") {
     val sender = reference("sender_id", UserTable)
     val body = text("body")
     val tag = enumerationByName("tag", 16, MessageTag::class).default(MessageTag.NONE)
+    val replyTo = reference("reply_to_id", Messages).nullable()
+    val forwardedFrom = reference("forwarded_from_id", Messages).nullable()
     val createdAt = timestamp("created_at").defaultExpression(CurrentTimestamp())
     val editedAt = timestamp("edited_at").nullable()
     val deletedAt = timestamp("deleted_at").nullable()
@@ -102,7 +136,16 @@ data class MessageDTO(
     val attachments: List<MessageAttachmentDTO> = emptyList(),
     val status: MessageStatus = MessageStatus.DELIVERED,
     val readBy: List<String> = emptyList(),
-    val reactions: List<MessageReactionDTO> = emptyList()
+    val reactions: List<MessageReactionDTO> = emptyList(),
+    val replyTo: ReplyMessageDTO? = null
+)
+
+@Serializable
+data class ReplyMessageDTO(
+    val id: String,
+    val senderId: String,
+    val senderName: String? = null,
+    val body: String
 )
 
 @Serializable
@@ -123,7 +166,11 @@ data class MessageAttachmentDTO(
 @Serializable
 data class ConversationMemberDTO(
     val userId: String,
-    val joinedAt: String
+    val email: String,
+    val joinedAt: String,
+    val username: String? = null,
+    val displayName: String? = null,
+    val avatarUrl: String? = null
 )
 
 @Serializable
@@ -134,7 +181,21 @@ data class ConversationSummaryDTO(
     val createdBy: String,
     val createdAt: String,
     val pinnedAt: String? = null,
+    val archivedAt: String? = null,
+    val isMuted: Boolean = false,
+    val mutedUntil: String? = null,
     val members: List<ConversationMemberDTO>,
     val lastMessage: MessageDTO?,
-    val unreadCount: Long
+    val unreadCount: Long,
+    val pinnedMessages: List<PinnedMessageDTO> = emptyList()
+)
+
+@Serializable
+data class PinnedMessageDTO(
+    val id: String,
+    val messageId: String,
+    val messageBody: String,
+    val senderName: String,
+    val pinnedBy: String,
+    val pinnedAt: String
 )

@@ -56,33 +56,17 @@ class UserService {
             ?.toProfile()
     }
 
-    fun updateProfile(
-        userId: UUID,
-        username: String? = null,
-        displayName: String? = null,
-        bio: String? = null,
-        avatarUrl: String? = null
-    ): UserProfileDTO = transaction {
-        val entityId = EntityID(userId, UserTable)
+    fun updateProfile(userId: UUID, username: String?, displayName: String?, bio: String?, avatarUrl: String?): UserProfileDTO? = transaction {
+        val userEntityId = EntityID(userId, UserTable)
         
-        // Check username uniqueness if changing
-        if (username != null) {
-            val existing = UserTable.select { 
-                (UserTable.username eq username) and (UserTable.id neq entityId) 
-            }.any()
-            require(!existing) { "username_taken" }
+        UserTable.update({ UserTable.id eq userEntityId }) {
+            if (username != null) it[UserTable.username] = username.ifBlank { null }
+            if (displayName != null) it[UserTable.displayName] = displayName
+            if (bio != null) it[UserTable.bio] = bio
+            if (avatarUrl != null) it[UserTable.avatarUrl] = avatarUrl
         }
 
-        UserTable.update({ UserTable.id eq entityId }) { row ->
-            username?.let { row[UserTable.username] = it }
-            displayName?.let { row[UserTable.displayName] = it }
-            bio?.let { row[UserTable.bio] = it }
-            avatarUrl?.let { row[UserTable.avatarUrl] = it }
-        }
-
-        UserTable.select { UserTable.id eq entityId }
-            .single()
-            .toProfile()
+        findProfile(userId)
     }
 
     fun searchContacts(requesterId: UUID, query: String?, limit: Int): List<UserProfileDTO> = transaction {
@@ -91,7 +75,11 @@ class UserService {
 
         val filtered = if (searchQuery != null) {
             val pattern = "%$searchQuery%"
-            base.andWhere { UserTable.email.ilike(pattern) }
+            base.andWhere { 
+                UserTable.email.ilike(pattern) or 
+                UserTable.username.ilike(pattern) or 
+                UserTable.displayName.ilike(pattern) 
+            }
         } else {
             base
         }
@@ -113,7 +101,7 @@ class UserService {
         avatarUrl = this[UserTable.avatarUrl]
     )
 
-    private fun Column<String>.ilike(pattern: String): Op<Boolean> = object : Op<Boolean>() {
+    private fun <T : String?> Expression<T>.ilike(pattern: String): Op<Boolean> = object : Op<Boolean>() {
         override fun toQueryBuilder(queryBuilder: QueryBuilder) {
             queryBuilder {
                 append(this@ilike)

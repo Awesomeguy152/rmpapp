@@ -4,10 +4,14 @@ import com.example.schema.ConversationDTO
 import com.example.schema.ConversationMemberDTO
 import com.example.schema.ConversationMembers
 import com.example.schema.ConversationPins
+import com.example.schema.ConversationArchives
+import com.example.schema.ConversationMutes
 import com.example.schema.ConversationReadMarkers
 import com.example.schema.ConversationSummaryDTO
 import com.example.schema.ConversationType
 import com.example.schema.Conversations
+import com.example.schema.PinnedMessages
+import com.example.schema.PinnedMessageDTO
 import com.example.schema.MessageAttachmentDTO
 import com.example.schema.MessageAttachments
 import com.example.schema.MessageDTO
@@ -16,6 +20,7 @@ import com.example.schema.MessageReactions
 import com.example.schema.MessageStatus
 import com.example.schema.MessageTag
 import com.example.schema.Messages
+import com.example.schema.ReplyMessageDTO
 import com.example.schema.UserTable
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.sql.Column
@@ -40,6 +45,7 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.greater
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.inList
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.isNull
+import org.jetbrains.exposed.sql.andWhere
 
 import java.time.Instant
 import java.util.UUID
@@ -126,24 +132,42 @@ class ChatService {
             .toConversationDTO()
     }
 
-    fun listConversations(userId: UUID, limit: Int, offset: Long): List<ConversationSummaryDTO> = transaction {
+    fun listConversations(userId: UUID, limit: Int, offset: Long, includeArchived: Boolean = false): List<ConversationSummaryDTO> = transaction {
         val membership = ConversationMembers.alias("membership")
         val pins = ConversationPins.alias("pins")
+        val archives = ConversationArchives.alias("archives")
+        val mutes = ConversationMutes.alias("mutes")
         val userEntityId = EntityID(userId, UserTable)
         val safeLimit = limit.coerceIn(1, 100)
         val safeOffset = offset.coerceAtLeast(0)
 
-        Conversations
+        var query = Conversations
             .join(membership, JoinType.INNER, additionalConstraint = { Conversations.id eq membership[ConversationMembers.conversation] })
             .join(pins, JoinType.LEFT, additionalConstraint = {
                 (Conversations.id eq pins[ConversationPins.conversation]) and (pins[ConversationPins.user] eq userEntityId)
             })
+            .join(archives, JoinType.LEFT, additionalConstraint = {
+                (Conversations.id eq archives[ConversationArchives.conversation]) and (archives[ConversationArchives.user] eq userEntityId)
+            })
+            .join(mutes, JoinType.LEFT, additionalConstraint = {
+                (Conversations.id eq mutes[ConversationMutes.conversation]) and (mutes[ConversationMutes.user] eq userEntityId)
+            })
             .select { membership[ConversationMembers.user] eq userEntityId }
+
+        // Фильтруем архивированные чаты если не запрошены явно
+        if (!includeArchived) {
+            query = query.andWhere { archives[ConversationArchives.archivedAt].isNull() }
+        }
+
+        query
             .orderBy(pins[ConversationPins.pinnedAt] to SortOrder.DESC, Conversations.createdAt to SortOrder.DESC)
             .limit(safeLimit, safeOffset)
             .map { row ->
                 val pinnedAt = row.getOrNull(pins[ConversationPins.pinnedAt])
-                row.toConversationSummary(userId, pinnedAt)
+                val archivedAt = row.getOrNull(archives[ConversationArchives.archivedAt])
+                val mutedUntil = row.getOrNull(mutes[ConversationMutes.mutedUntil])
+                val isMuted = row.getOrNull(mutes[ConversationMutes.mutedAt]) != null
+                row.toConversationSummary(userId, pinnedAt, archivedAt, isMuted, mutedUntil)
             }
     }
 
@@ -152,17 +176,28 @@ class ChatService {
 
         val conversationEntityId = EntityID(conversationId, Conversations)
         val pins = ConversationPins.alias("pins")
+        val archives = ConversationArchives.alias("archives")
+        val mutes = ConversationMutes.alias("mutes")
         val userEntityId = EntityID(requesterId, UserTable)
 
         Conversations
             .join(pins, JoinType.LEFT, additionalConstraint = {
                 (Conversations.id eq pins[ConversationPins.conversation]) and (pins[ConversationPins.user] eq userEntityId)
             })
+            .join(archives, JoinType.LEFT, additionalConstraint = {
+                (Conversations.id eq archives[ConversationArchives.conversation]) and (archives[ConversationArchives.user] eq userEntityId)
+            })
+            .join(mutes, JoinType.LEFT, additionalConstraint = {
+                (Conversations.id eq mutes[ConversationMutes.conversation]) and (mutes[ConversationMutes.user] eq userEntityId)
+            })
             .select { Conversations.id eq conversationEntityId }
             .singleOrNull()
             ?.let { row ->
                 val pinnedAt = row.getOrNull(pins[ConversationPins.pinnedAt])
-                row.toConversationSummary(requesterId, pinnedAt)
+                val archivedAt = row.getOrNull(archives[ConversationArchives.archivedAt])
+                val mutedUntil = row.getOrNull(mutes[ConversationMutes.mutedUntil])
+                val isMuted = row.getOrNull(mutes[ConversationMutes.mutedAt]) != null
+                row.toConversationSummary(requesterId, pinnedAt, archivedAt, isMuted, mutedUntil)
             }
             ?: throw NoSuchElementException("conversation_not_found")
     }
@@ -190,6 +225,195 @@ class ChatService {
         }
 
         getConversation(conversationId, requesterId)
+    }
+
+    fun archiveConversation(conversationId: UUID, requesterId: UUID): ConversationSummaryDTO = transaction {
+        ensureMembership(conversationId, requesterId)
+        val conversationEntityId = EntityID(conversationId, Conversations)
+        val userEntityId = EntityID(requesterId, UserTable)
+
+        ConversationArchives.insertIgnore {
+            it[conversation] = conversationEntityId
+            it[user] = userEntityId
+        }
+
+        getConversation(conversationId, requesterId)
+    }
+
+    fun unarchiveConversation(conversationId: UUID, requesterId: UUID): ConversationSummaryDTO = transaction {
+        ensureMembership(conversationId, requesterId)
+        val conversationEntityId = EntityID(conversationId, Conversations)
+        val userEntityId = EntityID(requesterId, UserTable)
+
+        ConversationArchives.deleteWhere {
+            (ConversationArchives.conversation eq conversationEntityId) and (ConversationArchives.user eq userEntityId)
+        }
+
+        getConversation(conversationId, requesterId)
+    }
+
+    fun muteConversation(conversationId: UUID, requesterId: UUID, untilTimestamp: Instant? = null): ConversationSummaryDTO = transaction {
+        ensureMembership(conversationId, requesterId)
+        val conversationEntityId = EntityID(conversationId, Conversations)
+        val userEntityId = EntityID(requesterId, UserTable)
+
+        // Удаляем старый мут если есть
+        ConversationMutes.deleteWhere {
+            (ConversationMutes.conversation eq conversationEntityId) and (ConversationMutes.user eq userEntityId)
+        }
+
+        // Добавляем новый мут
+        ConversationMutes.insert {
+            it[conversation] = conversationEntityId
+            it[user] = userEntityId
+            it[mutedUntil] = untilTimestamp
+        }
+
+        getConversation(conversationId, requesterId)
+    }
+
+    fun unmuteConversation(conversationId: UUID, requesterId: UUID): ConversationSummaryDTO = transaction {
+        ensureMembership(conversationId, requesterId)
+        val conversationEntityId = EntityID(conversationId, Conversations)
+        val userEntityId = EntityID(requesterId, UserTable)
+
+        ConversationMutes.deleteWhere {
+            (ConversationMutes.conversation eq conversationEntityId) and (ConversationMutes.user eq userEntityId)
+        }
+
+        getConversation(conversationId, requesterId)
+    }
+
+    fun deleteConversation(conversationId: UUID, requesterId: UUID): Boolean = transaction {
+        val conversationEntityId = EntityID(conversationId, Conversations)
+        
+        // Проверяем что пользователь - владелец или это direct chat
+        val conversation = Conversations.select { Conversations.id eq conversationEntityId }.singleOrNull()
+            ?: error("conversation_not_found")
+        
+        val isOwner = conversation[Conversations.createdBy].value == requesterId
+        val isDirect = conversation[Conversations.type] == ConversationType.DIRECT
+        
+        if (!isOwner && !isDirect) {
+            error("only_owner_can_delete")
+        }
+        
+        // Для direct - удаляем членство для этого пользователя (выход из чата)
+        if (isDirect) {
+            ConversationMembers.deleteWhere {
+                (ConversationMembers.conversation eq conversationEntityId) and (ConversationMembers.user eq EntityID(requesterId, UserTable))
+            }
+            return@transaction true
+        }
+        
+        // Для групповых чатов - полное удаление (только владелец)
+        // Удаляем все связанные данные
+        val messageIds = Messages.select { Messages.conversation eq conversationEntityId }.map { it[Messages.id] }
+        
+        MessageReactions.deleteWhere { MessageReactions.message inList messageIds }
+        MessageAttachments.deleteWhere { MessageAttachments.message inList messageIds }
+        Messages.deleteWhere { Messages.conversation eq conversationEntityId }
+        ConversationMembers.deleteWhere { ConversationMembers.conversation eq conversationEntityId }
+        ConversationPins.deleteWhere { ConversationPins.conversation eq conversationEntityId }
+        ConversationArchives.deleteWhere { ConversationArchives.conversation eq conversationEntityId }
+        ConversationMutes.deleteWhere { ConversationMutes.conversation eq conversationEntityId }
+        ConversationReadMarkers.deleteWhere { ConversationReadMarkers.conversation eq conversationEntityId }
+        PinnedMessages.deleteWhere { PinnedMessages.conversation eq conversationEntityId }
+        Conversations.deleteWhere { Conversations.id eq conversationEntityId }
+        
+        true
+    }
+
+    // === Pinned Messages ===
+
+    fun pinMessage(conversationId: UUID, messageId: UUID, requesterId: UUID): PinnedMessageDTO = transaction {
+        ensureMembership(conversationId, requesterId)
+        
+        val conversationEntityId = EntityID(conversationId, Conversations)
+        val messageEntityId = EntityID(messageId, Messages)
+        val userEntityId = EntityID(requesterId, UserTable)
+
+        // Проверяем что сообщение принадлежит этому чату
+        val message = Messages.select { (Messages.id eq messageEntityId) and (Messages.conversation eq conversationEntityId) }
+            .singleOrNull() ?: error("message_not_found")
+
+        // Удаляем старый пин если есть
+        PinnedMessages.deleteWhere {
+            (PinnedMessages.conversation eq conversationEntityId) and (PinnedMessages.message eq messageEntityId)
+        }
+
+        // Создаём новый пин
+        val pinId = PinnedMessages.insertAndGetId {
+            it[conversation] = conversationEntityId
+            it[PinnedMessages.message] = messageEntityId
+            it[pinnedBy] = userEntityId
+        }
+
+        // Получаем имя отправителя
+        val senderId = message[Messages.sender].value
+        val senderName = UserTable.select { UserTable.id eq senderId }
+            .singleOrNull()?.let { row ->
+                row[UserTable.displayName] ?: row[UserTable.username] ?: row[UserTable.email].substringBefore("@")
+            } ?: "Unknown"
+
+        // Получаем имя того кто закрепил
+        val pinnerName = UserTable.select { UserTable.id eq requesterId }
+            .singleOrNull()?.let { row ->
+                row[UserTable.displayName] ?: row[UserTable.username] ?: row[UserTable.email].substringBefore("@")
+            } ?: "Unknown"
+
+        PinnedMessageDTO(
+            id = pinId.value.toString(),
+            messageId = messageId.toString(),
+            messageBody = message[Messages.body].take(200),
+            senderName = senderName,
+            pinnedBy = pinnerName,
+            pinnedAt = java.time.Instant.now().toString()
+        )
+    }
+
+    fun unpinMessage(conversationId: UUID, messageId: UUID, requesterId: UUID): Boolean = transaction {
+        ensureMembership(conversationId, requesterId)
+        
+        val conversationEntityId = EntityID(conversationId, Conversations)
+        val messageEntityId = EntityID(messageId, Messages)
+
+        val deleted = PinnedMessages.deleteWhere {
+            (PinnedMessages.conversation eq conversationEntityId) and (PinnedMessages.message eq messageEntityId)
+        }
+
+        deleted > 0
+    }
+
+    fun getPinnedMessages(conversationId: UUID, requesterId: UUID): List<PinnedMessageDTO> = transaction {
+        ensureMembership(conversationId, requesterId)
+        
+        val conversationEntityId = EntityID(conversationId, Conversations)
+
+        PinnedMessages
+            .join(Messages, JoinType.INNER, additionalConstraint = { PinnedMessages.message eq Messages.id })
+            .join(UserTable, JoinType.LEFT, additionalConstraint = { Messages.sender eq UserTable.id })
+            .select { PinnedMessages.conversation eq conversationEntityId }
+            .orderBy(PinnedMessages.pinnedAt to SortOrder.DESC)
+            .map { row ->
+                val pinnerId = row[PinnedMessages.pinnedBy].value
+                val pinnerName = UserTable.select { UserTable.id eq pinnerId }
+                    .singleOrNull()?.let { r ->
+                        r[UserTable.displayName] ?: r[UserTable.username] ?: r[UserTable.email].substringBefore("@")
+                    } ?: "Unknown"
+
+                PinnedMessageDTO(
+                    id = row[PinnedMessages.id].value.toString(),
+                    messageId = row[Messages.id].value.toString(),
+                    messageBody = row[Messages.body].take(200),
+                    senderName = row.getOrNull(UserTable.displayName) 
+                        ?: row.getOrNull(UserTable.username) 
+                        ?: row.getOrNull(UserTable.email)?.substringBefore("@") 
+                        ?: "Unknown",
+                    pinnedBy = pinnerName,
+                    pinnedAt = row[PinnedMessages.pinnedAt].toString()
+                )
+            }
     }
 
     fun addMembers(conversationId: UUID, requesterId: UUID, memberIds: List<UUID>): List<ConversationMemberDTO> = transaction {
@@ -461,20 +685,42 @@ class ChatService {
         conversationId: UUID,
         senderId: UUID,
         body: String,
-        attachments: List<AttachmentInput> = emptyList()
+        attachments: List<AttachmentInput> = emptyList(),
+        replyToMessageId: UUID? = null,
+        forwardedFromMessageId: UUID? = null
     ): MessageDTO = transaction {
         val trimmedBody = body.trim()
-        require(trimmedBody.isNotEmpty()) { "message_body_blank" }
+        require(trimmedBody.isNotEmpty() || forwardedFromMessageId != null) { "message_body_blank" }
 
         ensureMembership(conversationId, senderId)
 
         val conversationEntityId = EntityID(conversationId, Conversations)
 
+        // Validate replyTo if provided
+        replyToMessageId?.let { replyId ->
+            val replyMsg = Messages.select { Messages.id eq EntityID(replyId, Messages) }.singleOrNull()
+                ?: throw NoSuchElementException("reply_message_not_found")
+            if (replyMsg[Messages.conversation].value != conversationId) {
+                throw IllegalArgumentException("reply_message_not_in_conversation")
+            }
+        }
+
+        // Get forwarded message content if forwarding
+        val finalBody = if (forwardedFromMessageId != null && trimmedBody.isEmpty()) {
+            val forwardedMsg = Messages.select { Messages.id eq EntityID(forwardedFromMessageId, Messages) }.singleOrNull()
+                ?: throw NoSuchElementException("forwarded_message_not_found")
+            forwardedMsg[Messages.body]
+        } else {
+            trimmedBody
+        }
+
         val messageId = Messages.insertAndGetId {
             it[Messages.conversation] = conversationEntityId
             it[Messages.sender] = EntityID(senderId, UserTable)
-            it[Messages.body] = trimmedBody
+            it[Messages.body] = finalBody
             it[Messages.tag] = MessageTag.NONE
+            it[Messages.replyTo] = replyToMessageId?.let { id -> EntityID(id, Messages) }
+            it[Messages.forwardedFrom] = forwardedFromMessageId?.let { id -> EntityID(id, Messages) }
             it[Messages.deletedAt] = null
             it[Messages.editedAt] = null
         }
@@ -642,7 +888,13 @@ class ChatService {
         }
     }
 
-    private fun ResultRow.toConversationSummary(viewerId: UUID, pinnedAt: java.time.Instant? = null): ConversationSummaryDTO {
+    private fun ResultRow.toConversationSummary(
+        viewerId: UUID, 
+        pinnedAt: java.time.Instant? = null,
+        archivedAt: java.time.Instant? = null,
+        isMuted: Boolean = false,
+        mutedUntil: java.time.Instant? = null
+    ): ConversationSummaryDTO {
         val conversationId = this[Conversations.id].value
 
         return ConversationSummaryDTO(
@@ -652,6 +904,9 @@ class ChatService {
             createdBy = this[Conversations.createdBy].value.toString(),
             createdAt = this[Conversations.createdAt].toInstantString(),
             pinnedAt = pinnedAt?.toInstantString(),
+            archivedAt = archivedAt?.toInstantString(),
+            isMuted = isMuted,
+            mutedUntil = mutedUntil?.toInstantString(),
             members = fetchMembers(conversationId),
             lastMessage = fetchLastMessage(conversationId),
             unreadCount = unreadCount(conversationId, viewerId)
@@ -677,6 +932,10 @@ class ChatService {
         val deletedAt = this[Messages.deletedAt]
         val editedAt = this[Messages.editedAt]
 
+        // Load reply info if exists
+        val replyToId = this.getOrNull(Messages.replyTo)?.value
+        val replyToDto = replyToId?.let { loadReplyInfo(it) }
+
         return MessageDTO(
             id = messageId.toString(),
             conversationId = this[Messages.conversation].value.toString(),
@@ -689,7 +948,22 @@ class ChatService {
             attachments = if (deletedAt == null) attachmentsByMessage[messageId] ?: emptyList() else emptyList(),
             status = status,
             readBy = readBy.map(UUID::toString),
-            reactions = reactionsByMessage[messageId] ?: emptyList()
+            reactions = reactionsByMessage[messageId] ?: emptyList(),
+            replyTo = replyToDto
+        )
+    }
+
+    private fun loadReplyInfo(messageId: UUID): ReplyMessageDTO? {
+        val row = Messages
+            .join(UserTable, JoinType.LEFT, additionalConstraint = { Messages.sender eq UserTable.id })
+            .select { Messages.id eq EntityID(messageId, Messages) }
+            .singleOrNull() ?: return null
+
+        return ReplyMessageDTO(
+            id = messageId.toString(),
+            senderId = row[Messages.sender].value.toString(),
+            senderName = row.getOrNull(UserTable.displayName) ?: row.getOrNull(UserTable.username) ?: row.getOrNull(UserTable.email)?.substringBefore("@"),
+            body = if (row[Messages.deletedAt] == null) row[Messages.body] else ""
         )
     }
 
@@ -737,7 +1011,11 @@ class ChatService {
 
     private fun ResultRow.toConversationMemberDTO(): ConversationMemberDTO = ConversationMemberDTO(
         userId = this[ConversationMembers.user].value.toString(),
-        joinedAt = this[ConversationMembers.joinedAt].toInstantString()
+        email = this[UserTable.email],
+        joinedAt = this[ConversationMembers.joinedAt].toInstantString(),
+        username = this[UserTable.username],
+        displayName = this[UserTable.displayName],
+        avatarUrl = this[UserTable.avatarUrl]
     )
 
     private fun attachmentsMap(messageIds: List<EntityID<UUID>>): Map<UUID, List<MessageAttachmentDTO>> {
@@ -830,6 +1108,7 @@ class ChatService {
     private fun fetchMembers(conversationId: UUID): List<ConversationMemberDTO> {
         val conversationEntityId = EntityID(conversationId, Conversations)
         return ConversationMembers
+            .join(UserTable, JoinType.INNER, additionalConstraint = { ConversationMembers.user eq UserTable.id })
             .select { ConversationMembers.conversation eq conversationEntityId }
             .orderBy(ConversationMembers.joinedAt, SortOrder.ASC)
             .map { it.toConversationMemberDTO() }

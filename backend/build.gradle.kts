@@ -28,6 +28,10 @@ dependencies {
     implementation("com.zaxxer:HikariCP:5.1.0")
     implementation("org.postgresql:postgresql:42.7.3")
     implementation("at.favre.lib:bcrypt:0.10.2")
+    
+    // Firebase Admin SDK for push notifications
+    implementation("com.google.auth:google-auth-library-oauth2-http:1.23.0")
+    
     testImplementation(kotlin("test"))
     testImplementation("com.h2database:h2:2.2.224")
     testImplementation("io.ktor:ktor-server-tests-jvm:$ktor_version")
