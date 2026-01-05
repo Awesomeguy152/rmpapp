@@ -26,13 +26,17 @@ fun Application.configureDatabase() {
     // Поддержка Railway/Render/Fly.io DATABASE_URL
     val databaseUrl = System.getenv("DATABASE_URL")
     
-    val (jdbcUrl, user, pass) = if (databaseUrl != null) {
+    log.info("DATABASE_URL present: ${databaseUrl != null}")
+    
+    val (jdbcUrl, user, pass) = if (!databaseUrl.isNullOrBlank()) {
         // Парсинг DATABASE_URL: postgresql://user:password@host:port/database
+        log.info("Using DATABASE_URL from environment")
         val uri = URI(databaseUrl)
         val userInfo = uri.userInfo?.split(":") ?: listOf("app", "app")
         val parsedUser = userInfo.getOrElse(0) { "app" }
         val parsedPass = userInfo.getOrElse(1) { "app" }
         val parsedJdbcUrl = "jdbc:postgresql://${uri.host}:${uri.port}${uri.path}"
+        log.info("Connecting to: ${uri.host}:${uri.port}${uri.path}")
         Triple(parsedJdbcUrl, parsedUser, parsedPass)
     } else {
         // Локальная разработка / Docker
