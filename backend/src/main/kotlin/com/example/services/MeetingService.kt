@@ -52,6 +52,38 @@ class MeetingService {
         getMeetingById(meetingId)!!
     }
 
+    /**
+     * Создать персональную встречу без привязки к чату
+     */
+    fun createPersonalMeeting(
+        creatorId: UUID,
+        title: String,
+        description: String?,
+        scheduledAt: Instant,
+        location: String?
+    ): MeetingDto = transaction {
+        val meetingId = Meetings.insertAndGetId {
+            it[Meetings.conversationId] = null
+            it[Meetings.creatorId] = creatorId
+            it[Meetings.title] = title
+            it[Meetings.description] = description
+            it[Meetings.scheduledAt] = scheduledAt
+            it[Meetings.location] = location
+            it[Meetings.aiGenerated] = false
+            it[Meetings.sourceMessageId] = null
+            it[Meetings.status] = "confirmed"
+        }.value
+
+        // Добавляем только создателя как участника
+        MeetingParticipants.insert {
+            it[MeetingParticipants.meetingId] = meetingId
+            it[MeetingParticipants.userId] = creatorId
+            it[MeetingParticipants.status] = "accepted"
+        }
+
+        getMeetingById(meetingId)!!
+    }
+
     fun getMeetingById(meetingId: UUID): MeetingDto? = transaction {
         Meetings.select { Meetings.id eq meetingId }
             .firstOrNull()

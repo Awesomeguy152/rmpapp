@@ -22,6 +22,9 @@ import kotlinx.serialization.json.Json
 class ChatService(private val apiClient: ApiClient) {
     private val httpClient get() = apiClient.httpClient
     private val baseUrl get() = apiClient.baseUrl
+    private val wsBaseUrl get() = baseUrl
+        .replace("https://", "wss://")
+        .replace("http://", "ws://")
     private val json = Json { ignoreUnknownKeys = true }
 
     suspend fun getConversations(limit: Int = 50, offset: Int = 0): List<ConversationSummaryDto> =
@@ -224,7 +227,7 @@ class ChatService(private val apiClient: ApiClient) {
     fun observeChatEvents(): Flow<ChatEventDto> = callbackFlow {
         while (isActive) {
             try {
-                httpClient.webSocket(urlString = "$baseUrl/api/chat/updates") {
+                httpClient.webSocket(urlString = "$wsBaseUrl/api/chat/updates") {
                     for (frame in incoming) {
                         when (frame) {
                             is Frame.Text -> {

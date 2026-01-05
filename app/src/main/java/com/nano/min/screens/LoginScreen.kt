@@ -151,7 +151,7 @@ fun LoginScreen(
                 ) {
                     Text(
                         text = stringResource(R.string.login_title),
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = colorScheme.onSurface
                     )

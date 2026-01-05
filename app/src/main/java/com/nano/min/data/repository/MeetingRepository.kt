@@ -92,6 +92,30 @@ class MeetingRepository(
     }
 
     /**
+     * Создать персональную встречу (без привязки к чату)
+     */
+    suspend fun createMeetingWithoutConversation(
+        title: String,
+        description: String?,
+        scheduledAt: String,
+        location: String?
+    ): Result<MeetingDto> = withContext(Dispatchers.IO) {
+        try {
+            val meeting = meetingService.createPersonalMeeting(
+                CreatePersonalMeetingRequest(
+                    title = title,
+                    description = description,
+                    scheduledAt = scheduledAt,
+                    location = location
+                )
+            )
+            Result.success(meeting)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
      * Принять или отклонить приглашение на встречу
      */
     suspend fun respondToMeeting(meetingId: String, accept: Boolean): Result<Boolean> = 

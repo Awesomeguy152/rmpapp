@@ -8,7 +8,7 @@ import org.jetbrains.exposed.sql.javatime.CurrentTimestamp
  * Таблица встреч, предложенных AI или созданных вручную
  */
 object Meetings : UUIDTable("meetings") {
-    val conversationId = uuid("conversation_id").references(Conversations.id)
+    val conversationId = uuid("conversation_id").references(Conversations.id).nullable()
     val creatorId = uuid("creator_id").references(UserTable.id)
     val title = varchar("title", 255)
     val description = text("description").nullable()

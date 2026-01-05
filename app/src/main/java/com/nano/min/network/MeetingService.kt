@@ -46,6 +46,14 @@ class MeetingService(private val apiClient: ApiClient) {
         }.body()
 
     /**
+     * Создать персональную встречу (без привязки к чату)
+     */
+    suspend fun createPersonalMeeting(request: CreatePersonalMeetingRequest): MeetingDto =
+        httpClient.post("$baseUrl/api/meetings/personal") {
+            setBody(request)
+        }.body()
+
+    /**
      * Принять или отклонить приглашение на встречу
      */
     suspend fun respondToMeeting(meetingId: String, accept: Boolean): Boolean {

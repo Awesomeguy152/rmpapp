@@ -75,6 +75,28 @@ fun Route.meetingRoutes() {
                 call.respond(HttpStatusCode.Created, meeting)
             }
             
+            // Создать персональную встречу (без привязки к чату)
+            post("/personal") {
+                val userId = call.userId() ?: return@post call.respondUnauthorized()
+                val rq = call.receive<CreatePersonalMeetingRq>()
+                
+                val scheduledAt = try {
+                    Instant.parse(rq.scheduledAt)
+                } catch (e: Exception) {
+                    return@post call.respondError("invalid_date_format")
+                }
+                
+                val meeting = meetingService.createPersonalMeeting(
+                    creatorId = userId,
+                    title = rq.title,
+                    description = rq.description,
+                    scheduledAt = scheduledAt,
+                    location = rq.location
+                )
+                
+                call.respond(HttpStatusCode.Created, meeting)
+            }
+            
             // AI: Извлечь встречи из сообщений
             post("/extract/{conversationId}") {
                 val userId = call.userId() ?: return@post call.respondUnauthorized()
@@ -209,4 +231,12 @@ data class CreateFromAiRq(
     val dateTime: String?,
     val location: String?,
     val sourceMessageId: String?
+)
+
+@kotlinx.serialization.Serializable
+data class CreatePersonalMeetingRq(
+    val title: String,
+    val description: String? = null,
+    val scheduledAt: String,
+    val location: String? = null
 )

@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -37,6 +38,7 @@ fun MeetingsScreen(
     onNavigateBack: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    var showCreateDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.loadMeetings()
@@ -55,6 +57,17 @@ fun MeetingsScreen(
                     }
                 }
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { showCreateDialog = true },
+                containerColor = MaterialTheme.colorScheme.primary
+            ) {
+                Icon(
+                    Icons.Default.Add,
+                    contentDescription = stringResource(R.string.create_meeting)
+                )
+            }
         }
     ) { padding ->
         Box(
@@ -93,6 +106,22 @@ fun MeetingsScreen(
             kotlinx.coroutines.delay(3000)
             viewModel.clearError()
         }
+    }
+
+    // Диалог создания встречи
+    if (showCreateDialog) {
+        CreateMeetingDialog(
+            onDismiss = { showCreateDialog = false },
+            onCreate = { title, description, dateTime, location ->
+                viewModel.createMeetingManually(
+                    title = title,
+                    description = description,
+                    scheduledAt = dateTime,
+                    location = location
+                )
+                showCreateDialog = false
+            }
+        )
     }
 }
 
@@ -420,7 +449,7 @@ private fun ExtractedMeetingItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Уверенность: ${(meeting.confidence * 100).toInt()}%",
+                    text = stringResource(R.string.meeting_confidence, (meeting.confidence * 100).toInt()),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                 )
@@ -434,4 +463,143 @@ private fun ExtractedMeetingItem(
             }
         }
     }
+}
+
+/**
+ * Диалог для ручного создания встречи
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CreateMeetingDialog(
+    onDismiss: () -> Unit,
+    onCreate: (title: String, description: String?, dateTime: String, location: String?) -> Unit
+) {
+    var title by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    var location by remember { mutableStateOf("") }
+    var date by remember { mutableStateOf("") }
+    var time by remember { mutableStateOf("") }
+    var titleError by remember { mutableStateOf(false) }
+    var dateError by remember { mutableStateOf(false) }
+    var timeError by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = stringResource(R.string.create_meeting),
+                style = MaterialTheme.typography.headlineSmall
+            )
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Название встречи
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { 
+                        title = it
+                        titleError = false
+                    },
+                    label = { Text(stringResource(R.string.meeting_title_label)) },
+                    isError = titleError,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Описание
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text(stringResource(R.string.meeting_description_label)) },
+                    minLines = 2,
+                    maxLines = 3,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Дата (формат DD.MM.YYYY)
+                OutlinedTextField(
+                    value = date,
+                    onValueChange = { 
+                        date = it
+                        dateError = false
+                    },
+                    label = { Text(stringResource(R.string.meeting_date_label)) },
+                    placeholder = { Text("25.01.2026") },
+                    isError = dateError,
+                    singleLine = true,
+                    leadingIcon = {
+                        Icon(Icons.Default.CalendarMonth, contentDescription = null)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Время (формат HH:MM)
+                OutlinedTextField(
+                    value = time,
+                    onValueChange = { 
+                        time = it
+                        timeError = false
+                    },
+                    label = { Text(stringResource(R.string.meeting_time_label)) },
+                    placeholder = { Text("14:30") },
+                    isError = timeError,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Место
+                OutlinedTextField(
+                    value = location,
+                    onValueChange = { location = it },
+                    label = { Text(stringResource(R.string.meeting_location_label)) },
+                    singleLine = true,
+                    leadingIcon = {
+                        Icon(Icons.Default.LocationOn, contentDescription = null)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    // Валидация
+                    var hasError = false
+                    if (title.isBlank()) {
+                        titleError = true
+                        hasError = true
+                    }
+                    if (!date.matches(Regex("""\d{2}\.\d{2}\.\d{4}"""))) {
+                        dateError = true
+                        hasError = true
+                    }
+                    if (!time.matches(Regex("""\d{2}:\d{2}"""))) {
+                        timeError = true
+                        hasError = true
+                    }
+                    
+                    if (!hasError) {
+                        // Конвертируем в ISO формат
+                        val parts = date.split(".")
+                        val isoDateTime = "${parts[2]}-${parts[1]}-${parts[0]}T${time}:00Z"
+                        onCreate(
+                            title,
+                            description.ifBlank { null },
+                            isoDateTime,
+                            location.ifBlank { null }
+                        )
+                    }
+                }
+            ) {
+                Text(stringResource(R.string.create_meeting))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(android.R.string.cancel))
+            }
+        }
+    )
 }

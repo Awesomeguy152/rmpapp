@@ -139,6 +139,45 @@ class MeetingsViewModel(
     }
 
     /**
+     * Создать встречу вручную (без привязки к чату)
+     */
+    fun createMeetingManually(
+        title: String,
+        description: String?,
+        scheduledAt: String,
+        location: String?
+    ) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            
+            // Для ручных встреч используем специальный ID "personal"
+            // или можно создать персональный чат для встреч
+            meetingRepository.createMeetingWithoutConversation(
+                title = title,
+                description = description,
+                scheduledAt = scheduledAt,
+                location = location
+            )
+                .onSuccess { meeting ->
+                    _uiState.update { state ->
+                        state.copy(
+                            meetings = (state.meetings + meeting).sortedBy { it.scheduledAt },
+                            isLoading = false
+                        )
+                    }
+                }
+                .onFailure { error ->
+                    _uiState.update { 
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = error.message
+                        )
+                    }
+                }
+        }
+    }
+
+    /**
      * Принять приглашение на встречу
      */
     fun acceptMeeting(meetingId: String) {

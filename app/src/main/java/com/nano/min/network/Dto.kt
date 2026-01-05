@@ -301,6 +301,14 @@ data class CreateMeetingRequest(
 )
 
 @Serializable
+data class CreatePersonalMeetingRequest(
+    val title: String,
+    val description: String? = null,
+    val scheduledAt: String,
+    val location: String? = null
+)
+
+@Serializable
 data class RespondMeetingRequest(
     val accept: Boolean
 )

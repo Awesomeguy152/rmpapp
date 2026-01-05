@@ -32,8 +32,8 @@ android {
 
     buildTypes {
         debug {
-            // Эмулятор: 10.0.2.2 - это localhost хост-машины
-            buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:8080\"")
+            // Используем Railway сервер и для debug сборки
+            buildConfigField("String", "BASE_URL", "\"https://rmpapp-production.up.railway.app\"")
         }
         release {
             isMinifyEnabled = false
