@@ -32,8 +32,8 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // Эмулятор: 10.0.2.2 для тестирования
-            buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:8080\"")
+            // Production сервер на Railway
+            buildConfigField("String", "BASE_URL", "\"https://rmpapp-production.up.railway.app\"")
         }
     }
     compileOptions {
