@@ -1,0 +1,11 @@
+# Exclude Android app files
+app/
+.gradle/
+.idea/
+.kotlin/
+build/
+*.iml
+local.properties
+
+# Include backend
+!backend/
