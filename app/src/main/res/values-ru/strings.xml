@@ -149,5 +149,24 @@
     <string name="unpin_message">Открепить сообщение</string>
     <string name="no_pinned_messages">Нет закреплённых сообщений</string>
     <string name="offline_mode">Офлайн-режим — показаны данные из кеша</string>
+    
+    <!-- Meetings -->
+    <string name="screen_meetings">Встречи</string>
+    <string name="meetings_title">Встречи</string>
+    <string name="meetings_empty">Нет запланированных встреч</string>
+    <string name="meetings_loading">Загрузка встреч…</string>
+    <string name="meeting_pending">Ожидание</string>
+    <string name="meeting_confirmed">Подтверждено</string>
+    <string name="meeting_cancelled">Отменено</string>
+    <string name="meeting_accept">Принять</string>
+    <string name="meeting_decline">Отклонить</string>
+    <string name="meeting_delete">Удалить</string>
+    <string name="meeting_location">Место: %s</string>
+    <string name="meeting_ai_generated">Предложено AI</string>
+    <string name="ai_extract_meetings">Найти встречи</string>
+    <string name="ai_extracting">Анализ сообщений…</string>
+    <string name="ai_no_meetings_found">Встречи в переписке не найдены</string>
+    <string name="ai_meetings_found">Найдено предложений: %d</string>
+    <string name="create_meeting">Создать встречу</string>
 
 </resources>

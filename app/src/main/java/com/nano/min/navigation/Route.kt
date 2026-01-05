@@ -4,6 +4,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.sharp.Chat
 import androidx.compose.material.icons.automirrored.sharp.Login
 import androidx.compose.material.icons.sharp.AutoFixHigh
+import androidx.compose.material.icons.sharp.CalendarMonth
 import androidx.compose.material.icons.sharp.Chat
 import androidx.compose.material.icons.sharp.Password
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -51,4 +52,9 @@ data class ProfileScreenRoute(val userId: String? = null) : Route {
 data object EditProfileScreenRoute : Route {
     override val title = R.string.screen_profile
     override val icon = Icons.AutoMirrored.Sharp.Chat
+}
+
+data object MeetingsScreenRoute : Route {
+    override val title = R.string.screen_meetings
+    override val icon = Icons.Sharp.CalendarMonth
 }

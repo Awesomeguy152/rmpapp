@@ -2,9 +2,11 @@ package com.nano.min.di
 
 import com.nano.min.data.local.AppDatabase
 import com.nano.min.data.repository.ChatRepository
+import com.nano.min.data.repository.MeetingRepository
 import com.nano.min.network.ApiClient
 import com.nano.min.network.AuthService
 import com.nano.min.network.ChatService
+import com.nano.min.network.MeetingService
 import com.nano.min.network.UploadService
 import com.nano.min.network.DeviceTokenStorage
 import com.nano.min.network.TokenStorage
@@ -24,6 +26,9 @@ val dataModule = module {
     // ChatService
     single { ChatService(get()) }
 
+    // MeetingService
+    single { MeetingService(get()) }
+
     // UploadService
     single { UploadService(get()) }
 
@@ -37,4 +42,5 @@ val dataModule = module {
 
     // Repositories
     single { ChatRepository(get(), get(), get(), get()) }
+    single { MeetingRepository(get()) }
 }

@@ -15,6 +15,7 @@ import com.nano.min.screens.ForgotPasswordScreen
 import com.nano.min.screens.AppRootScreen
 import com.nano.min.screens.ProfileScreen
 import com.nano.min.screens.EditProfileScreen
+import com.nano.min.screens.MeetingsScreen
 import org.koin.compose.koinInject
 
 @Composable
@@ -73,6 +74,9 @@ fun AppNavigationRoot(
                     },
                     onProfileClick = {
                         backStack.add(ProfileScreenRoute())
+                    },
+                    onMeetingsClick = {
+                        backStack.add(MeetingsScreenRoute)
                     }
                 )
             }
@@ -91,6 +95,11 @@ fun AppNavigationRoot(
                 EditProfileScreen(
                     onBack = { backStack.removeLastOrNull() },
                     onSaveSuccess = { backStack.removeLastOrNull() }
+                )
+            }
+            entry<MeetingsScreenRoute> {
+                MeetingsScreen(
+                    onNavigateBack = { backStack.removeLastOrNull() }
                 )
             }
         }

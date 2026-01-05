@@ -244,3 +244,68 @@ data class UpdateTopicRequest(
 data class ModifyMembersRequest(
     val memberIds: List<String>
 )
+
+// ==================== Meetings ====================
+
+@Serializable
+data class MeetingDto(
+    val id: String,
+    val conversationId: String,
+    val creatorId: String,
+    val title: String,
+    val description: String? = null,
+    val scheduledAt: String,
+    val location: String? = null,
+    val status: String,
+    val aiGenerated: Boolean = false,
+    val createdAt: String,
+    val updatedAt: String,
+    val participants: List<MeetingParticipantDto> = emptyList()
+)
+
+@Serializable
+data class MeetingParticipantDto(
+    val id: String,
+    val meetingId: String,
+    val userId: String,
+    val userName: String? = null,
+    val userAvatar: String? = null,
+    val status: String,
+    val respondedAt: String? = null
+)
+
+@Serializable
+data class ExtractedMeetingDto(
+    val title: String,
+    val description: String? = null,
+    val dateTime: String? = null,
+    val location: String? = null,
+    val confidence: Double,
+    val sourceMessageId: String? = null
+)
+
+@Serializable
+data class ExtractMeetingsResponse(
+    val meetings: List<ExtractedMeetingDto>
+)
+
+@Serializable
+data class CreateMeetingRequest(
+    val conversationId: String,
+    val title: String,
+    val description: String? = null,
+    val scheduledAt: String,
+    val location: String? = null,
+    val aiGenerated: Boolean = false,
+    val sourceMessageId: String? = null
+)
+
+@Serializable
+data class RespondMeetingRequest(
+    val accept: Boolean
+)
+
+@Serializable
+data class UpdateMeetingStatusRequest(
+    val status: String
+)

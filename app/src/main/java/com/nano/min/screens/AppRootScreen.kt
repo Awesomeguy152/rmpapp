@@ -39,6 +39,7 @@ import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ContentCopy
@@ -173,6 +174,7 @@ private fun formatRelativeTime(timeString: String?): String {
 fun AppRootScreen(
 	onLogout: () -> Unit,
     onProfileClick: () -> Unit = {},
+    onMeetingsClick: () -> Unit = {},
 	viewModel: ChatsViewModel = koinViewModel()
 ) {
 	val conversationState by viewModel.conversationState.collectAsStateWithLifecycle()
@@ -287,6 +289,13 @@ fun AppRootScreen(
 					}
 				},
 				actions = {
+					IconButton(onClick = onMeetingsClick) {
+						Icon(
+							imageVector = Icons.Default.CalendarMonth,
+							contentDescription = stringResource(R.string.screen_meetings),
+							tint = colorScheme.onSurface
+						)
+					}
 					IconButton(onClick = onProfileClick) {
 						Icon(
 							imageVector = Icons.Default.AccountCircle,

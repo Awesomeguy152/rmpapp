@@ -5,6 +5,7 @@
     <string name="screen_forgotpass">Password Recovery</string>
     <string name="screen_chats">Chats</string>
     <string name="screen_profile">Profile</string>
+    <string name="screen_meetings">Meetings</string>
     <string name="screen_chat">Chat with %s</string>
     <string name="password">Password</string>
     <string name="email" translatable="false">E-mail</string>
@@ -151,4 +152,22 @@
     <string name="unpin_message">Unpin message</string>
     <string name="no_pinned_messages">No pinned messages</string>
     <string name="offline_mode">Offline mode - showing cached data</string>
+    
+    <!-- Meetings -->
+    <string name="meetings_title">Meetings</string>
+    <string name="meetings_empty">No meetings scheduled</string>
+    <string name="meetings_loading">Loading meetings…</string>
+    <string name="meeting_pending">Pending</string>
+    <string name="meeting_confirmed">Confirmed</string>
+    <string name="meeting_cancelled">Cancelled</string>
+    <string name="meeting_accept">Accept</string>
+    <string name="meeting_decline">Decline</string>
+    <string name="meeting_delete">Delete</string>
+    <string name="meeting_location">Location: %s</string>
+    <string name="meeting_ai_generated">Suggested by AI</string>
+    <string name="ai_extract_meetings">Find meetings</string>
+    <string name="ai_extracting">Analyzing messages…</string>
+    <string name="ai_no_meetings_found">No meetings found in conversation</string>
+    <string name="ai_meetings_found">Found %d meeting suggestions</string>
+    <string name="create_meeting">Create meeting</string>
 </resources>
