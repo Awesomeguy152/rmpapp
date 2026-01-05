@@ -21,6 +21,15 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("../release-keystore.jks")
+            storePassword = "rmpapp123"
+            keyAlias = "rmpapp"
+            keyPassword = "rmpapp123"
+        }
+    }
+
     buildTypes {
         debug {
             // Эмулятор: 10.0.2.2 - это localhost хост-машины
@@ -28,6 +37,7 @@ android {
         }
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

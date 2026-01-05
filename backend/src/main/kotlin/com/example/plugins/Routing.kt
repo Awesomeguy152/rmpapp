@@ -9,6 +9,7 @@ import com.example.routes.docsRoutes
 import com.example.routes.userRoutes
 import com.example.routes.deviceTokenRoutes
 import com.example.routes.uploadRoutes
+import com.example.routes.meetingRoutes
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.response.*
@@ -30,5 +31,6 @@ fun Application.configureRouting() {
         docsRoutes()
         deviceTokenRoutes()
         uploadRoutes()
+        meetingRoutes()
     }
 }
