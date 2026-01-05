@@ -27,8 +27,11 @@ fun Application.configureDatabase() {
     val databaseUrl = System.getenv("DATABASE_URL")
     
     log.info("DATABASE_URL present: ${databaseUrl != null}")
+    log.info("DATABASE_URL blank: ${databaseUrl.isNullOrBlank()}")
+    log.info("DATABASE_URL length: ${databaseUrl?.length ?: 0}")
+    log.info("DATABASE_URL starts with: ${databaseUrl?.take(20) ?: "null"}")
     
-    val (jdbcUrl, user, pass) = if (!databaseUrl.isNullOrBlank()) {
+    val (jdbcUrl, user, pass) = if (!databaseUrl.isNullOrBlank() && databaseUrl.contains("://")) {
         // Парсинг DATABASE_URL: postgresql://user:password@host:port/database
         log.info("Using DATABASE_URL from environment")
         val uri = URI(databaseUrl)
