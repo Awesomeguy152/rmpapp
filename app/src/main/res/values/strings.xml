@@ -169,7 +169,13 @@
     <string name="ai_extract_meetings">Найти встречи</string>
     <string name="ai_extracting">Анализ сообщений…</string>
     <string name="ai_no_meetings_found">Встречи в переписке не найдены</string>
+    <string name="no_meetings_found">Встречи не найдены в этом чате</string>
+    <string name="error_extracting_meetings">Ошибка при поиске встреч</string>
+    <string name="meeting_created">Встреча создана</string>
+    <string name="error_creating_meeting">Ошибка при создании встречи</string>
     <string name="ai_meetings_found">Найдено предложений: %d</string>
+    <string name="ai_meetings_dialog_title">Найденные встречи</string>
+    <string name="ai_create_meeting">Создать</string>
     <string name="create_meeting">Создать встречу</string>
     <string name="meeting_title_label">Название встречи</string>
     <string name="meeting_description_label">Описание (необязательно)</string>

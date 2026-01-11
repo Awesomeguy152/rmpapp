@@ -152,4 +152,31 @@ class MeetingRepository(
             Result.failure(e)
         }
     }
+
+    /**
+     * Создать встречу из предложения AI
+     */
+    suspend fun createMeetingFromAi(
+        conversationId: String,
+        title: String,
+        description: String?,
+        dateTime: String?,
+        location: String?,
+        sourceMessageId: String?
+    ): Result<MeetingDto> = withContext(Dispatchers.IO) {
+        try {
+            val request = CreateFromAiRequest(
+                conversationId = conversationId,
+                title = title,
+                description = description,
+                dateTime = dateTime,
+                location = location,
+                sourceMessageId = sourceMessageId
+            )
+            val meeting = meetingService.createMeetingFromAi(request)
+            Result.success(meeting)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

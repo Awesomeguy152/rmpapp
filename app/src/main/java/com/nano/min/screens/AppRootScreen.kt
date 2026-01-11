@@ -52,6 +52,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -130,6 +131,7 @@ import com.nano.min.viewmodel.ConversationItem
 import com.nano.min.viewmodel.ConversationsUiState
 import com.nano.min.viewmodel.AttachmentItem
 import com.nano.min.viewmodel.MessageItem
+import com.nano.min.viewmodel.ExtractedMeetingInfo
 import com.nano.min.viewmodel.ContactSuggestion
 import com.nano.min.viewmodel.MemberInfo
 import com.nano.min.viewmodel.PendingAttachment
@@ -388,6 +390,9 @@ fun AppRootScreen(
 							onPinMessage = viewModel::pinMessage,
 							onUnpinMessage = viewModel::unpinMessage,
 							onTogglePinnedPanel = viewModel::togglePinnedMessagesPanel,
+							onExtractMeetings = viewModel::extractMeetingsFromCurrentConversation,
+							onCreateMeetingFromExtracted = viewModel::createMeetingFromExtracted,
+							onDismissExtractedMeetings = viewModel::dismissExtractedMeetingsDialog,
 							conversations = conversationState.conversations,
 							onBack = { viewModel.clearConversationSelection() },
 							modifier = Modifier.fillMaxSize()
@@ -456,6 +461,9 @@ fun AppRootScreen(
 							onPinMessage = viewModel::pinMessage,
 							onUnpinMessage = viewModel::unpinMessage,
 							onTogglePinnedPanel = viewModel::togglePinnedMessagesPanel,
+							onExtractMeetings = viewModel::extractMeetingsFromCurrentConversation,
+							onCreateMeetingFromExtracted = viewModel::createMeetingFromExtracted,
+							onDismissExtractedMeetings = viewModel::dismissExtractedMeetingsDialog,
 							conversations = conversationState.conversations,
 							onBack = null,
 							modifier = Modifier.weight(1f)
@@ -1195,6 +1203,9 @@ private fun ConversationDetailPanel(
 	onPinMessage: (String) -> Unit,
 	onUnpinMessage: (String) -> Unit,
 	onTogglePinnedPanel: () -> Unit,
+	onExtractMeetings: () -> Unit,
+	onCreateMeetingFromExtracted: (ExtractedMeetingInfo) -> Unit,
+	onDismissExtractedMeetings: () -> Unit,
 	conversations: List<ConversationItem>,
 	onBack: (() -> Unit)?,
 	modifier: Modifier = Modifier
@@ -1408,6 +1419,24 @@ private fun ConversationDetailPanel(
 						style = MaterialTheme.typography.titleMedium,
 						modifier = Modifier.weight(1f)
 					)
+					// Кнопка AI извлечения встреч
+					IconButton(
+						onClick = onExtractMeetings,
+						enabled = !state.isExtractingMeetings
+					) {
+						if (state.isExtractingMeetings) {
+							CircularProgressIndicator(
+								modifier = Modifier.size(24.dp),
+								strokeWidth = 2.dp
+							)
+						} else {
+							Icon(
+								imageVector = Icons.Default.SmartToy,
+								contentDescription = stringResource(R.string.ai_extract_meetings),
+								tint = colorScheme.primary
+							)
+						}
+					}
 					// Кнопка закреплённых сообщений
 					if (state.pinnedMessages.isNotEmpty()) {
 						Badge(
@@ -1425,6 +1454,15 @@ private fun ConversationDetailPanel(
 						)
 					}
 				}
+			}
+			
+			// Диалог с извлечёнными встречами
+			if (state.showExtractedMeetingsDialog && state.extractedMeetings.isNotEmpty()) {
+				ExtractedMeetingsDialog(
+					meetings = state.extractedMeetings,
+					onCreateMeeting = onCreateMeetingFromExtracted,
+					onDismiss = onDismissExtractedMeetings
+				)
 			}
 			
 			// Фиксированная панель закреплённых сообщений
@@ -2636,6 +2674,143 @@ private fun VoiceMessagePlayer(
 				style = MaterialTheme.typography.bodyMedium,
 				fontWeight = FontWeight.Medium
 			)
+		}
+	}
+}
+
+/**
+ * Диалог с извлечёнными AI встречами
+ */
+@Composable
+private fun ExtractedMeetingsDialog(
+	meetings: List<ExtractedMeetingInfo>,
+	onCreateMeeting: (ExtractedMeetingInfo) -> Unit,
+	onDismiss: () -> Unit
+) {
+	AlertDialog(
+		onDismissRequest = onDismiss,
+		title = {
+			Row(
+				verticalAlignment = Alignment.CenterVertically,
+				horizontalArrangement = Arrangement.spacedBy(8.dp)
+			) {
+				Icon(
+					imageVector = Icons.Default.SmartToy,
+					contentDescription = null,
+					tint = MaterialTheme.colorScheme.primary
+				)
+				Text(stringResource(R.string.ai_meetings_dialog_title))
+			}
+		},
+		text = {
+			LazyColumn(
+				verticalArrangement = Arrangement.spacedBy(12.dp)
+			) {
+				items(meetings) { meeting ->
+					ExtractedMeetingCard(
+						meeting = meeting,
+						onCreateMeeting = { onCreateMeeting(meeting) }
+					)
+				}
+			}
+		},
+		confirmButton = {
+			TextButton(onClick = onDismiss) {
+				Text(stringResource(R.string.cancel))
+			}
+		}
+	)
+}
+
+/**
+ * Карточка извлечённой встречи
+ */
+@Composable
+private fun ExtractedMeetingCard(
+	meeting: ExtractedMeetingInfo,
+	onCreateMeeting: () -> Unit
+) {
+	val colorScheme = MaterialTheme.colorScheme
+	
+	Surface(
+		shape = RoundedCornerShape(12.dp),
+		color = colorScheme.surfaceVariant.copy(alpha = 0.5f),
+		border = BorderStroke(1.dp, colorScheme.outline.copy(alpha = 0.3f))
+	) {
+		Column(
+			modifier = Modifier.padding(12.dp),
+			verticalArrangement = Arrangement.spacedBy(8.dp)
+		) {
+			// Заголовок
+			Text(
+				text = meeting.title,
+				style = MaterialTheme.typography.titleSmall,
+				fontWeight = FontWeight.SemiBold
+			)
+			
+			// Описание
+			meeting.description?.let { desc ->
+				Text(
+					text = desc,
+					style = MaterialTheme.typography.bodySmall,
+					color = colorScheme.onSurfaceVariant,
+					maxLines = 3,
+					overflow = TextOverflow.Ellipsis
+				)
+			}
+			
+			// Дата и место
+			Row(
+				horizontalArrangement = Arrangement.spacedBy(16.dp)
+			) {
+				meeting.dateTime?.let { dateTime ->
+					Row(
+						verticalAlignment = Alignment.CenterVertically,
+						horizontalArrangement = Arrangement.spacedBy(4.dp)
+					) {
+						Icon(
+							imageVector = Icons.Default.CalendarMonth,
+							contentDescription = null,
+							modifier = Modifier.size(14.dp),
+							tint = colorScheme.primary
+						)
+						Text(
+							text = dateTime,
+							style = MaterialTheme.typography.labelSmall,
+							color = colorScheme.primary
+						)
+					}
+				}
+			}
+			
+			// Уверенность AI и кнопка создания
+			Row(
+				modifier = Modifier.fillMaxWidth(),
+				horizontalArrangement = Arrangement.SpaceBetween,
+				verticalAlignment = Alignment.CenterVertically
+			) {
+				Text(
+					text = stringResource(R.string.meeting_confidence, (meeting.confidence * 100).toInt()),
+					style = MaterialTheme.typography.labelSmall,
+					color = colorScheme.onSurfaceVariant
+				)
+				
+				Button(
+					onClick = onCreateMeeting,
+					contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
+				) {
+					Icon(
+						imageVector = Icons.Default.Check,
+						contentDescription = null,
+						modifier = Modifier.size(16.dp)
+					)
+					Spacer(modifier = Modifier.width(4.dp))
+					Text(
+						text = stringResource(R.string.ai_create_meeting),
+						style = MaterialTheme.typography.labelMedium
+					)
+				}
+			}
 		}
 	}
 }

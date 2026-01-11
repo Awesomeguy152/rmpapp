@@ -39,6 +39,7 @@ import com.nano.min.network.PinnedMessageDto
 import com.nano.min.network.ConversationMemberDto
 import com.nano.min.network.ConversationType
 import com.nano.min.data.repository.ChatRepository
+import com.nano.min.data.repository.MeetingRepository
 import com.nano.min.data.local.ConversationEntity
 import com.nano.min.data.local.MessageEntity
 
@@ -75,7 +76,20 @@ data class ConversationDetailUiState(
     val isSearching: Boolean = false,
     val isRecordingVoice: Boolean = false,
     val voiceRecordingStartTime: Long = 0L,
-    val showPinnedMessages: Boolean = false
+    val showPinnedMessages: Boolean = false,
+    // AI Meeting extraction
+    val isExtractingMeetings: Boolean = false,
+    val extractedMeetings: List<ExtractedMeetingInfo> = emptyList(),
+    val showExtractedMeetingsDialog: Boolean = false
+)
+
+data class ExtractedMeetingInfo(
+    val title: String,
+    val description: String?,
+    val dateTime: String?,
+    val location: String?,
+    val confidence: Double,
+    val sourceMessageId: String?
 )
 
 data class PendingAttachment(
@@ -156,7 +170,8 @@ class ChatsViewModel(
     application: Application,
     private val authService: AuthService,
     private val chatService: ChatService,
-    private val chatRepository: ChatRepository
+    private val chatRepository: ChatRepository,
+    private val meetingRepository: MeetingRepository
 ) : ViewModelRes(application) {
 
     private val _conversationState = MutableStateFlow(ConversationsUiState(isLoading = true))
@@ -1296,6 +1311,82 @@ class ChatsViewModel(
                 members = members
             )
         )
+    }
+    
+    // ============ AI Meeting Extraction ============
+    
+    /**
+     * Извлечь предложения о встречах из текущего чата с помощью AI
+     */
+    fun extractMeetingsFromCurrentConversation() {
+        val conversationId = selectedConversationId ?: return
+        
+        viewModelScope.launch {
+            _detailState.update { it.copy(isExtractingMeetings = true, extractedMeetings = emptyList()) }
+            
+            meetingRepository.extractMeetings(conversationId)
+                .onSuccess { extracted ->
+                    val meetings = extracted.map { dto ->
+                        ExtractedMeetingInfo(
+                            title = dto.title,
+                            description = dto.description,
+                            dateTime = dto.dateTime,
+                            location = dto.location,
+                            confidence = dto.confidence,
+                            sourceMessageId = dto.sourceMessageId
+                        )
+                    }
+                    _detailState.update { 
+                        it.copy(
+                            isExtractingMeetings = false,
+                            extractedMeetings = meetings,
+                            showExtractedMeetingsDialog = meetings.isNotEmpty()
+                        )
+                    }
+                    if (meetings.isEmpty()) {
+                        _events.emit(ChatsEvent.ShowMessage(getString(R.string.no_meetings_found)))
+                    }
+                }
+                .onFailure { error ->
+                    _detailState.update { it.copy(isExtractingMeetings = false) }
+                    _events.emit(ChatsEvent.ShowMessage(error.message ?: getString(R.string.error_extracting_meetings)))
+                }
+        }
+    }
+    
+    /**
+     * Создать встречу из предложения AI
+     */
+    fun createMeetingFromExtracted(meeting: ExtractedMeetingInfo) {
+        val conversationId = selectedConversationId ?: return
+        
+        viewModelScope.launch {
+            meetingRepository.createMeetingFromAi(
+                conversationId = conversationId,
+                title = meeting.title,
+                description = meeting.description,
+                dateTime = meeting.dateTime,
+                location = meeting.location,
+                sourceMessageId = meeting.sourceMessageId
+            ).onSuccess {
+                _events.emit(ChatsEvent.ShowMessage(getString(R.string.meeting_created)))
+                dismissExtractedMeetingsDialog()
+            }.onFailure { error ->
+                _events.emit(ChatsEvent.ShowMessage(error.message ?: getString(R.string.error_creating_meeting)))
+            }
+        }
+    }
+    
+    /**
+     * Закрыть диалог с извлечёнными встречами
+     */
+    fun dismissExtractedMeetingsDialog() {
+        _detailState.update { 
+            it.copy(
+                showExtractedMeetingsDialog = false,
+                extractedMeetings = emptyList()
+            ) 
+        }
     }
 }
 

@@ -309,6 +309,16 @@ data class CreatePersonalMeetingRequest(
 )
 
 @Serializable
+data class CreateFromAiRequest(
+    val conversationId: String,
+    val title: String,
+    val description: String? = null,
+    val dateTime: String? = null,
+    val location: String? = null,
+    val sourceMessageId: String? = null
+)
+
+@Serializable
 data class RespondMeetingRequest(
     val accept: Boolean
 )

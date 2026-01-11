@@ -14,9 +14,17 @@ class MeetingService(private val apiClient: ApiClient) {
     /**
      * Извлечь предложения встреч из сообщений чата с помощью AI
      */
-    suspend fun extractMeetings(conversationId: String): List<ExtractedMeetingDto> =
-        httpClient.post("$baseUrl/api/meetings/extract") {
-            setBody(mapOf("conversationId" to conversationId))
+    suspend fun extractMeetings(conversationId: String): List<ExtractedMeetingDto> {
+        val response: ExtractMeetingsResponse = httpClient.post("$baseUrl/api/meetings/extract/$conversationId").body()
+        return response.meetings
+    }
+
+    /**
+     * Создать встречу из предложения AI
+     */
+    suspend fun createMeetingFromAi(request: CreateFromAiRequest): MeetingDto =
+        httpClient.post("$baseUrl/api/meetings/create-from-ai") {
+            setBody(request)
         }.body()
 
     /**
