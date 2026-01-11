@@ -285,25 +285,36 @@ private fun MeetingCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Status badge
+            // Status badge - показываем статус участия пользователя
+            val displayStatus = meeting.participantStatus ?: meeting.status
+            val statusColor2 = when (displayStatus) {
+                "accepted" -> MaterialTheme.colorScheme.primary
+                "declined" -> MaterialTheme.colorScheme.error
+                "confirmed" -> MaterialTheme.colorScheme.primary
+                "cancelled" -> MaterialTheme.colorScheme.error
+                else -> MaterialTheme.colorScheme.secondary
+            }
+            
             Surface(
-                color = statusColor.copy(alpha = 0.1f),
+                color = statusColor2.copy(alpha = 0.1f),
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Text(
-                    text = when (meeting.status) {
+                    text = when (displayStatus) {
+                        "accepted" -> stringResource(R.string.meeting_confirmed)
                         "confirmed" -> stringResource(R.string.meeting_confirmed)
-                        "cancelled" -> stringResource(R.string.meeting_cancelled)
+                        "declined", "cancelled" -> stringResource(R.string.meeting_cancelled)
                         else -> stringResource(R.string.meeting_pending)
                     },
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                     style = MaterialTheme.typography.labelMedium,
-                    color = statusColor
+                    color = statusColor2
                 )
             }
 
-            // Action buttons (only for pending)
-            if (meeting.status == "pending") {
+            // Action buttons (only for pending participant status)
+            val participantStatus = meeting.participantStatus ?: "pending"
+            if (participantStatus == "pending" && meeting.status != "cancelled") {
                 Spacer(modifier = Modifier.height(12.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -332,8 +343,8 @@ private fun MeetingCard(
                 }
             }
 
-            // Delete button
-            if (meeting.status == "cancelled" || meeting.status == "confirmed") {
+            // Delete button (for declined or cancelled meetings)
+            if (participantStatus == "declined" || meeting.status == "cancelled") {
                 Spacer(modifier = Modifier.height(8.dp))
                 TextButton(
                     onClick = onDelete,

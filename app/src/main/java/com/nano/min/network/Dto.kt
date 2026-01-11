@@ -259,7 +259,8 @@ data class MeetingDto(
     val status: String,
     val aiGenerated: Boolean = false,
     val createdAt: String,
-    val updatedAt: String
+    val updatedAt: String,
+    val participantStatus: String? = null // Статус текущего пользователя: pending, accepted, declined
 )
 
 @Serializable

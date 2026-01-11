@@ -91,13 +91,25 @@ class MeetingService {
     }
 
     fun getMeetingsForUser(userId: UUID): List<MeetingDto> = transaction {
-        val meetingIds = MeetingParticipants
+        (Meetings innerJoin MeetingParticipants)
             .select { MeetingParticipants.userId eq userId }
-            .map { it[MeetingParticipants.meetingId] }
-
-        Meetings.select { Meetings.id inList meetingIds }
             .orderBy(Meetings.scheduledAt, SortOrder.ASC)
-            .map { it.toMeetingDto() }
+            .map { row ->
+                MeetingDto(
+                    id = row[Meetings.id].value.toString(),
+                    conversationId = row[Meetings.conversationId]?.toString(),
+                    creatorId = row[Meetings.creatorId].toString(),
+                    title = row[Meetings.title],
+                    description = row[Meetings.description],
+                    scheduledAt = row[Meetings.scheduledAt].toString(),
+                    location = row[Meetings.location],
+                    status = row[Meetings.status],
+                    aiGenerated = row[Meetings.aiGenerated],
+                    createdAt = row[Meetings.createdAt].toString(),
+                    updatedAt = row[Meetings.updatedAt].toString(),
+                    participantStatus = row[MeetingParticipants.status]
+                )
+            }
     }
 
     fun getMeetingsForConversation(conversationId: UUID): List<MeetingDto> = transaction {
@@ -169,7 +181,8 @@ data class MeetingDto(
     val status: String,
     val aiGenerated: Boolean,
     val createdAt: String,
-    val updatedAt: String
+    val updatedAt: String,
+    val participantStatus: String? = null // Статус текущего пользователя: pending, accepted, declined
 )
 
 @Serializable
