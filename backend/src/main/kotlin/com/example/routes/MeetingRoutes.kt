@@ -120,7 +120,12 @@ fun Route.meetingRoutes() {
             // AI: Создать встречу из предложения AI
             post("/create-from-ai") {
                 val userId = call.userId() ?: return@post call.respondUnauthorized()
-                val rq = call.receive<CreateFromAiRq>()
+                
+                val rq = try {
+                    call.receive<CreateFromAiRq>()
+                } catch (e: Exception) {
+                    return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to "invalid_request", "message" to e.message))
+                }
                 
                 val conversationId = rq.conversationId.toUuidOrNull()
                     ?: return@post call.respondError("invalid_conversation_id")
@@ -132,23 +137,27 @@ fun Route.meetingRoutes() {
                 }
                 
                 val scheduledAt = try {
-                    Instant.parse(rq.dateTime)
+                    if (rq.dateTime != null) Instant.parse(rq.dateTime) else Instant.now().plusSeconds(86400)
                 } catch (e: Exception) {
                     Instant.now().plusSeconds(86400) // Завтра, если дата не распознана
                 }
                 
-                val meeting = meetingService.createMeeting(
-                    conversationId = conversationId,
-                    creatorId = userId,
-                    title = rq.title,
-                    description = rq.description,
-                    scheduledAt = scheduledAt,
-                    location = rq.location,
-                    aiGenerated = true,
-                    sourceMessageId = rq.sourceMessageId?.toUuidOrNull()
-                )
-                
-                call.respond(HttpStatusCode.Created, meeting)
+                try {
+                    val meeting = meetingService.createMeeting(
+                        conversationId = conversationId,
+                        creatorId = userId,
+                        title = rq.title,
+                        description = rq.description,
+                        scheduledAt = scheduledAt,
+                        location = rq.location,
+                        aiGenerated = true,
+                        sourceMessageId = rq.sourceMessageId?.toUuidOrNull()
+                    )
+                    
+                    call.respond(HttpStatusCode.Created, meeting)
+                } catch (e: Exception) {
+                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "create_failed", "message" to e.message))
+                }
             }
             
             // Ответить на приглашение (принять/отклонить)
