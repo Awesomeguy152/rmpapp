@@ -9,18 +9,30 @@ import jakarta.mail.Session
 import jakarta.mail.Transport
 import jakarta.mail.internet.InternetAddress
 import jakarta.mail.internet.MimeMessage
+import java.net.URI
 import java.net.URLEncoder
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
 import java.nio.charset.StandardCharsets
 import java.util.Properties
+import kotlinx.serialization.json.*
 
 class MailService(private val app: Application) {
+    // Resend API (приоритет)
+    private val resendApiKey = env("RESEND_API_KEY", "")
+    
+    // SMTP fallback
     private val host = env("SMTP_HOST", "mailhog")
     private val port = env("SMTP_PORT", "1025").toInt()
     private val username = env("SMTP_USER", "")
     private val password = env("SMTP_PASS", "")
-    private val from = env("SMTP_FROM", "no-reply@example.com")
+    private val from = env("SMTP_FROM", "onboarding@resend.dev")
     private val startTls = env("SMTP_STARTTLS", "false").toBoolean()
     private val resetBase = env("RESET_LINK_BASE", "http://localhost:3000")
+    
+    private val httpClient = HttpClient.newHttpClient()
+    private val json = Json { ignoreUnknownKeys = true }
 
     private fun env(key: String, default: String): String = System.getenv(key) ?: default
 
@@ -42,6 +54,44 @@ class MailService(private val app: Application) {
     }
 
     fun send(to: String, subject: String, html: String) {
+        // Используем Resend если есть API ключ
+        if (resendApiKey.isNotBlank()) {
+            sendViaResend(to, subject, html)
+        } else {
+            sendViaSMTP(to, subject, html)
+        }
+    }
+    
+    private fun sendViaResend(to: String, subject: String, html: String) {
+        try {
+            val requestBody = buildJsonObject {
+                put("from", from)
+                put("to", buildJsonArray { add(to) })
+                put("subject", subject)
+                put("html", html)
+            }.toString()
+            
+            val request = HttpRequest.newBuilder()
+                .uri(URI.create("https://api.resend.com/emails"))
+                .header("Authorization", "Bearer $resendApiKey")
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                .build()
+            
+            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+            
+            if (response.statusCode() in 200..299) {
+                app.log.info("✅ Resend: sent email to=$to, subject=\"$subject\"")
+            } else {
+                app.log.error("❌ Resend error: ${response.statusCode()} - ${response.body()}")
+            }
+        } catch (e: Exception) {
+            app.log.error("❌ Resend exception: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+    
+    private fun sendViaSMTP(to: String, subject: String, html: String) {
         val message = MimeMessage(session())
         message.setFrom(InternetAddress(from))
         val recipients: Array<Address> = InternetAddress.parse(to, false)
