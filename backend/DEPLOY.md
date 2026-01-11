@@ -23,9 +23,26 @@
 В настройках сервиса добавь:
 
 ```
+# Обязательные
 JWT_SECRET=your-super-secret-key-change-this
 ADMIN_REGISTRATION_SECRET=your-admin-secret
 DATABASE_URL=${{Postgres.DATABASE_URL}}
+
+# OpenAI (для AI извлечения встреч)
+OPENAI_API_KEY=sk-...
+
+# SMTP (для сброса пароля - опционально)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password
+SMTP_FROM=no-reply@yourdomain.com
+SMTP_STARTTLS=true
+RESET_LINK_BASE=https://your-app.up.railway.app
+
+# Firebase Push Notifications (опционально)
+# Загрузите firebase-service-account.json и укажите путь:
+# FIREBASE_SERVICE_ACCOUNT_PATH=/app/firebase-service-account.json
 ```
 
 Railway автоматически подставит URL базы данных.
