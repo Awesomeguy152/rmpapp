@@ -2783,18 +2783,12 @@ private fun ExtractedMeetingCard(
 				}
 			}
 			
-			// Уверенность AI и кнопка создания
+			// Кнопка создания встречи
 			Row(
 				modifier = Modifier.fillMaxWidth(),
-				horizontalArrangement = Arrangement.SpaceBetween,
+				horizontalArrangement = Arrangement.End,
 				verticalAlignment = Alignment.CenterVertically
 			) {
-				Text(
-					text = stringResource(R.string.meeting_confidence, (meeting.confidence * 100).toInt()),
-					style = MaterialTheme.typography.labelSmall,
-					color = colorScheme.onSurfaceVariant
-				)
-				
 				Button(
 					onClick = onCreateMeeting,
 					contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
