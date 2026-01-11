@@ -13,6 +13,8 @@ import com.example.schema.ConversationReadMarkers
 import com.example.schema.ConversationPins
 import com.example.schema.MessageReactions
 import com.example.schema.DeviceTokens
+import com.example.schema.Meetings
+import com.example.schema.MeetingParticipants
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import io.ktor.server.application.*
@@ -74,7 +76,9 @@ fun Application.configureDatabase() {
             ConversationMutes,
             PinnedMessages,
             MessageReactions,
-            DeviceTokens
+            DeviceTokens,
+            Meetings,
+            MeetingParticipants
         )
     }
 

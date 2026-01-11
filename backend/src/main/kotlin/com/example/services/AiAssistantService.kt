@@ -166,6 +166,119 @@ class AiAssistantService(
             "Ошибка AI: ${e.message}"
         }
     }
+    
+    /**
+     * Извлекает информацию о встречах из сообщений переписки
+     */
+    suspend fun extractMeetings(conversationId: UUID, requesterId: UUID? = null): List<ExtractedMeetingDto> {
+        if (!isConfigured || chatService == null || requesterId == null) {
+            return extractMeetingsWithPatterns(conversationId, requesterId)
+        }
+        
+        val messages = try {
+            chatService.listMessages(conversationId, requesterId, limit = 50, offset = 0)
+        } catch (e: Exception) {
+            return emptyList()
+        }
+        
+        if (messages.isEmpty()) return emptyList()
+        
+        val messagesText = messages.joinToString("\n") { 
+            "[${it.senderId.take(8)}]: ${it.body}" 
+        }
+        
+        val prompt = """
+            Проанализируй сообщения чата и найди упоминания о встречах, созвонах или встречах.
+            Для каждой найденной встречи извлеки:
+            - title: Краткое название встречи
+            - description: О чём встреча
+            - dateTime: Когда встреча (в формате ISO 8601, если упоминается)
+            - location: Где будет встреча (если упоминается)
+            - confidence: Уверенность что это реальное предложение о встрече (от 0.0 до 1.0)
+            
+            Верни JSON массив. Если встреч не найдено - верни пустой массив [].
+            Включай только реальные предложения или подтверждения встреч.
+            
+            Текущая дата: ${java.time.LocalDate.now()}
+            
+            Сообщения:
+            $messagesText
+            
+            Ответ (только JSON):
+        """.trimIndent()
+        
+        return try {
+            val response = httpClient.post("https://api.openai.com/v1/chat/completions") {
+                header("Authorization", "Bearer $openAiApiKey")
+                contentType(ContentType.Application.Json)
+                setBody(OpenAIRequest(
+                    model = openAiModel,
+                    messages = listOf(
+                        OpenAIMessage(role = "system", content = "Ты помощник, который извлекает информацию о встречах из сообщений чата. Отвечай только валидным JSON."),
+                        OpenAIMessage(role = "user", content = prompt)
+                    ),
+                    maxTokens = 1000,
+                    temperature = 0.3
+                ))
+            }
+            
+            val result: OpenAIResponse = response.body()
+            val content = result.choices.firstOrNull()?.message?.content ?: return emptyList()
+            
+            parseExtractedMeetings(content)
+        } catch (e: Exception) {
+            extractMeetingsWithPatterns(conversationId, requesterId)
+        }
+    }
+    
+    private fun extractMeetingsWithPatterns(conversationId: UUID, requesterId: UUID?): List<ExtractedMeetingDto> {
+        if (chatService == null || requesterId == null) return emptyList()
+        
+        val messages = try {
+            chatService.listMessages(conversationId, requesterId, limit = 50, offset = 0)
+        } catch (e: Exception) {
+            return emptyList()
+        }
+        
+        val meetings = mutableListOf<ExtractedMeetingDto>()
+        
+        val meetingPatterns = listOf(
+            Regex("""(?i)(встреч|meeting|созвон|звонок|call).*?(\d{1,2}[.:]\d{2}|\d{1,2}\s*(часов|час|ч|am|pm))"""),
+            Regex("""(?i)(давай|let'?s|можем|можно).*?(встретимся|meet|созвонимся|call)"""),
+            Regex("""(?i)(завтра|сегодня|tomorrow|today).*?(\d{1,2}[.:]\d{2}|\d{1,2}\s*(часов|час))""")
+        )
+        
+        for (msg in messages) {
+            for (pattern in meetingPatterns) {
+                if (pattern.containsMatchIn(msg.body)) {
+                    meetings.add(ExtractedMeetingDto(
+                        title = "Встреча",
+                        description = msg.body.take(200),
+                        dateTime = null,
+                        location = null,
+                        confidence = 0.6,
+                        sourceMessageId = msg.id
+                    ))
+                    break
+                }
+            }
+        }
+        
+        return meetings.distinctBy { it.description }
+    }
+    
+    private fun parseExtractedMeetings(jsonContent: String): List<ExtractedMeetingDto> {
+        return try {
+            val cleanJson = jsonContent
+                .replace("```json", "")
+                .replace("```", "")
+                .trim()
+            
+            Json.decodeFromString<List<ExtractedMeetingDto>>(cleanJson)
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
 }
 
 @Serializable
@@ -207,4 +320,14 @@ data class AiNextAction(
     val conversationId: String,
     val suggestions: List<String>,
     val generatedAt: String
+)
+
+@Serializable
+data class ExtractedMeetingDto(
+    val title: String,
+    val description: String?,
+    val dateTime: String? = null,
+    val location: String? = null,
+    val confidence: Double = 0.5,
+    val sourceMessageId: String? = null
 )
