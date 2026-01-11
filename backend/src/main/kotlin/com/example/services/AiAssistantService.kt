@@ -97,11 +97,18 @@ class AiAssistantService {
     private fun extractMeetingsWithPatterns(messages: List<MessageContext>): List<ExtractedMeeting> {
         val meetings = mutableListOf<ExtractedMeeting>()
         
-        // Паттерны для поиска встреч
+        // Паттерны для поиска встреч (улучшенные)
         val meetingPatterns = listOf(
-            Regex("""(?i)(встреч|meeting|созвон|звонок|call).*?(\d{1,2}[.:]\d{2}|\d{1,2}\s*(часов|час|ч|am|pm))"""),
+            // "meeting tomorrow at 12" или "meeting at 15:00"
+            Regex("""(?i)(встреч|meeting|созвон|звонок|call)\s*(tomorrow|завтра|сегодня|today)?.*?(at|в|на)?\s*(\d{1,2}([.:]\d{2})?)\s*(часов|час|ч|am|pm|утра|вечера)?"""),
+            // "давай встретимся завтра"
             Regex("""(?i)(давай|let'?s|можем|можно).*?(встретимся|meet|созвонимся|call)"""),
-            Regex("""(?i)(завтра|сегодня|tomorrow|today|понедельник|вторник|среда|четверг|пятница|суббота|воскресенье).*?(\d{1,2}[.:]\d{2}|\d{1,2}\s*(часов|час))""")
+            // "завтра в 12" или "в понедельник в 10:00"
+            Regex("""(?i)(завтра|сегодня|tomorrow|today|понедельник|вторник|среда|четверг|пятница|суббота|воскресенье|monday|tuesday|wednesday|thursday|friday|saturday|sunday).*(в|at)\s*\d{1,2}([.:]\d{2})?"""),
+            // просто "meeting" + число (время)
+            Regex("""(?i)meeting.*\d{1,2}"""),
+            // "встреча" + любое время
+            Regex("""(?i)встреча.*\d{1,2}""")
         )
         
         for (msg in messages) {

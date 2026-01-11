@@ -176,6 +176,7 @@
     <string name="ai_meetings_found">Найдено предложений: %d</string>
     <string name="ai_meetings_dialog_title">Найденные встречи</string>
     <string name="ai_create_meeting">Создать</string>
+    <string name="cancel">Закрыть</string>
     <string name="create_meeting">Создать встречу</string>
     <string name="meeting_title_label">Название встречи</string>
     <string name="meeting_description_label">Описание (необязательно)</string>
