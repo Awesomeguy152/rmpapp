@@ -258,20 +258,15 @@ data class MeetingDto(
     val location: String? = null,
     val status: String,
     val aiGenerated: Boolean = false,
-    val createdAt: String,
-    val updatedAt: String,
-    val participants: List<MeetingParticipantDto> = emptyList()
+    val createdAt: String
 )
 
 @Serializable
 data class MeetingParticipantDto(
-    val id: String,
-    val meetingId: String,
-    val userId: String,
-    val userName: String? = null,
-    val userAvatar: String? = null,
-    val status: String,
-    val respondedAt: String? = null
+    val oderId: String,
+    val email: String,
+    val displayName: String? = null,
+    val status: String
 )
 
 @Serializable
