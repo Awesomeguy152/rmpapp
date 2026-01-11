@@ -9,3 +9,7 @@
 .cxx
 local.properties
 app/google-services.json
+MobileApp/
+*.dex
+*.class
+build/
