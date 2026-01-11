@@ -1,7 +1,8 @@
-FROM eclipse-temurin:17-jdk as build
+FROM gradle:8.5-jdk17 as build
 WORKDIR /app
 COPY . /app
-RUN chmod +x gradlew && ./gradlew --no-daemon clean fatJar -x test
+RUN chmod +x gradlew && ./gradlew --no-daemon clean fatJar -x test && \
+    ls -la build/libs/
 
 FROM eclipse-temurin:17-jre
 WORKDIR /app

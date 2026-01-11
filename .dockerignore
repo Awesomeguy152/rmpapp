@@ -1,0 +1,10 @@
+# Игнорируем всё, кроме backend
+*
+!backend/
+
+# Внутри backend игнорируем лишнее
+backend/.gradle/
+backend/build/
+backend/.idea/
+backend/*.iml
+backend/.DS_Store
