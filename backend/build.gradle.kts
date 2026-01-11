@@ -35,6 +35,11 @@ dependencies {
     // Firebase Admin SDK for push notifications
     implementation("com.google.auth:google-auth-library-oauth2-http:1.23.0")
     
+    // Ktor client for OpenAI API
+    implementation("io.ktor:ktor-client-core-jvm:$ktor_version")
+    implementation("io.ktor:ktor-client-cio-jvm:$ktor_version")
+    implementation("io.ktor:ktor-client-content-negotiation-jvm:$ktor_version")
+    
     testImplementation(kotlin("test"))
     testImplementation("com.h2database:h2:2.2.224")
     testImplementation("io.ktor:ktor-server-tests-jvm:$ktor_version")

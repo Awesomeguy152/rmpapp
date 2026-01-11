@@ -15,9 +15,15 @@ import java.util.UUID
 @Serializable
 data class AiConversationRq(val conversationId: String)
 
+@Serializable
+data class SmartRepliesResponse(
+    val conversationId: String,
+    val replies: List<String>
+)
+
 fun Route.aiRoutes() {
     val chatService = ChatService()
-    val aiService = AiAssistantService()
+    val aiService = AiAssistantService(chatService)
 
     authenticate("auth-jwt") {
         route("/api/ai") {
@@ -38,7 +44,7 @@ fun Route.aiRoutes() {
                     return@post call.respondError(HttpStatusCode.Forbidden, iae.message ?: "not_a_conversation_member")
                 }
 
-                val response = aiService.summarizeConversation(conversationId)
+                val response = aiService.summarizeConversation(conversationId, requesterId)
                 call.respond(HttpStatusCode.OK, response)
             }
 
@@ -59,8 +65,32 @@ fun Route.aiRoutes() {
                     return@post call.respondError(HttpStatusCode.Forbidden, iae.message ?: "not_a_conversation_member")
                 }
 
-                val response = aiService.suggestNextAction(conversationId)
+                val response = aiService.suggestNextAction(conversationId, requesterId)
                 call.respond(HttpStatusCode.OK, response)
+            }
+            
+            post("/smart-replies") {
+                val principal = call.principalOrUnauthorized() ?: return@post
+                val requesterId = principal.userIdOrNull()
+                    ?: return@post call.respondError(HttpStatusCode.BadRequest, "invalid_subject")
+
+                val rq = call.receive<AiConversationRq>()
+                val conversationId = rq.conversationId.toUuidOrNull()
+                    ?: return@post call.respondError(HttpStatusCode.BadRequest, "invalid_conversation_id")
+
+                try {
+                    chatService.assertMembership(conversationId, requesterId)
+                } catch (nse: NoSuchElementException) {
+                    return@post call.respondError(HttpStatusCode.NotFound, nse.message ?: "conversation_not_found")
+                } catch (iae: IllegalArgumentException) {
+                    return@post call.respondError(HttpStatusCode.Forbidden, iae.message ?: "not_a_conversation_member")
+                }
+
+                val replies = aiService.generateSmartReply(conversationId, requesterId)
+                call.respond(HttpStatusCode.OK, SmartRepliesResponse(
+                    conversationId = conversationId.toString(),
+                    replies = replies
+                ))
             }
         }
     }

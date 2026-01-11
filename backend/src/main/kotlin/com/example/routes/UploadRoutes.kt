@@ -11,12 +11,15 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
+import java.util.UUID
 
 @Serializable
 data class UploadResponse(
     val url: String,
     val fileName: String
 )
+
+private fun String.toUuidOrNull(): UUID? = runCatching { UUID.fromString(this) }.getOrNull()
 
 fun Route.uploadRoutes() {
     val userService = UserService()
