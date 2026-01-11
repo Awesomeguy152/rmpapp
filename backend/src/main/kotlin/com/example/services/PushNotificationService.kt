@@ -9,6 +9,7 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.io.File
 import java.io.FileInputStream
+import java.io.ByteArrayInputStream
 import java.util.UUID
 
 /**
@@ -20,7 +21,8 @@ class PushNotificationService {
     private val httpClient = HttpClient.newHttpClient()
     private val json = Json { ignoreUnknownKeys = true }
     
-    // Путь к файлу Service Account (должен быть в корне проекта)
+    // Приоритет: 1) JSON из переменной окружения, 2) файл
+    private val serviceAccountJson = System.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
     private val serviceAccountPath = System.getenv("FIREBASE_SERVICE_ACCOUNT_PATH") 
         ?: "firebase-service-account.json"
     
@@ -28,18 +30,34 @@ class PushNotificationService {
     
     private val projectId: String by lazy {
         try {
-            val file = File(serviceAccountPath)
-            if (file.exists()) {
-                val jsonContent = json.parseToJsonElement(file.readText()).jsonObject
-                jsonContent["project_id"]?.jsonPrimitive?.content ?: "rmp-messanger"
+            val jsonContent = getServiceAccountJson()
+            if (jsonContent != null) {
+                json.parseToJsonElement(jsonContent).jsonObject["project_id"]?.jsonPrimitive?.content 
+                    ?: "rmpapp-3a7af"
             } else {
-                System.err.println("⚠️ Firebase Service Account file not found: $serviceAccountPath")
-                "rmp-messanger"
+                System.err.println("⚠️ Firebase Service Account not configured")
+                "rmpapp-3a7af"
             }
         } catch (e: Exception) {
             System.err.println("⚠️ Error reading Firebase config: ${e.message}")
-            "rmp-messanger"
+            "rmpapp-3a7af"
         }
+    }
+    
+    /**
+     * Получает JSON Service Account из переменной или файла
+     */
+    private fun getServiceAccountJson(): String? {
+        // Сначала проверяем переменную окружения
+        if (!serviceAccountJson.isNullOrBlank()) {
+            return serviceAccountJson
+        }
+        // Затем файл
+        val file = File(serviceAccountPath)
+        if (file.exists()) {
+            return file.readText()
+        }
+        return null
     }
 
     /**
@@ -148,16 +166,16 @@ class PushNotificationService {
      */
     private fun getAccessToken(): String? {
         return try {
-            val file = File(serviceAccountPath)
-            if (!file.exists()) {
-                println("⚠️ Service account file not found: $serviceAccountPath")
+            val jsonContent = getServiceAccountJson()
+            if (jsonContent == null) {
+                println("⚠️ Firebase Service Account not configured")
                 return null
             }
             
             // Создаём или переиспользуем credentials
             if (cachedCredentials == null) {
                 cachedCredentials = GoogleCredentials
-                    .fromStream(FileInputStream(file))
+                    .fromStream(ByteArrayInputStream(jsonContent.toByteArray()))
                     .createScoped(listOf("https://www.googleapis.com/auth/firebase.messaging"))
             }
             
