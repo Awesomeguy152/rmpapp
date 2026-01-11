@@ -11,6 +11,7 @@ import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 
+// Version: 2.1 - Cloudinary integration with logging
 fun main() {
     embeddedServer(Netty, port = System.getenv("PORT")?.toIntOrNull() ?: 8080,
         module = Application::module).start(wait = true)

@@ -54,12 +54,16 @@ enum class ConversationType { DIRECT, GROUP }
 enum class MessageTag { NONE, ANSWER, MEETING, IMPORTANT }
 
 @Serializable
+enum class MessageStatus { SENT, DELIVERED, READ }
+
+@Serializable
 data class ConversationSummaryDto(
     val id: String,
     val type: ConversationType,
     val topic: String? = null,
     val createdBy: String,
     val createdAt: String,
+    val pinnedAt: String? = null,
     val members: List<ConversationMemberDto> = emptyList(),
     val lastMessage: MessageDto? = null,
     val unreadCount: Long = 0
@@ -93,7 +97,9 @@ data class MessageDto(
     val createdAt: String,
     val editedAt: String? = null,
     val deletedAt: String? = null,
-    val attachments: List<MessageAttachmentDto> = emptyList()
+    val attachments: List<MessageAttachmentDto> = emptyList(),
+    val status: MessageStatus = MessageStatus.DELIVERED,
+    val readBy: List<String> = emptyList()
 )
 
 @Serializable
@@ -132,7 +138,10 @@ data class ChatEventDto(
     val conversationId: String? = null,
     val recipients: List<String> = emptyList(),
     val message: MessageDto? = null,
-    val conversation: ConversationSummaryDto? = null
+    val conversation: ConversationSummaryDto? = null,
+    val messageId: String? = null,
+    val readerId: String? = null,
+    val status: MessageStatus? = null
 )
 
 @Serializable
@@ -143,4 +152,9 @@ data class UpdateTopicRequest(
 @Serializable
 data class ModifyMembersRequest(
     val memberIds: List<String>
+)
+
+@Serializable
+data class EditMessageRequest(
+    val body: String
 )

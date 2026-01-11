@@ -1,0 +1,6 @@
+# Указываем Railway использовать Dockerfile
+[phases.build]
+cmds = []
+
+[start]
+cmd = "java -cp /app/app.jar com.example.ApplicationKt"

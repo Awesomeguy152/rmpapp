@@ -581,6 +581,12 @@ components:
         attachments:
           type: array
           items: { $ref: "#/components/schemas/MessageAttachment" }
+        status:
+          type: string
+          enum: [SENT, DELIVERED, READ]
+        readBy:
+          type: array
+          items: { type: string, format: uuid }
     AiConversationRequest:
       type: object
       required: [conversationId]

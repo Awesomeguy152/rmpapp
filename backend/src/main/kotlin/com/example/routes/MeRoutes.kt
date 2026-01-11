@@ -9,6 +9,9 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import java.util.UUID
 
+import com.example.schema.UpdateProfileRq
+import io.ktor.server.request.receive
+
 fun Route.meRoutes() {
     val service = UserService()
 
@@ -24,6 +27,21 @@ fun Route.meRoutes() {
                 ?: return@get call.respond(HttpStatusCode.NotFound, mapOf("error" to "user_not_found"))
 
             call.respond(profile)
+        }
+
+        patch("/api/me") {
+            val principal = call.principal<JWTPrincipal>()
+                ?: return@patch call.respond(HttpStatusCode.Unauthorized)
+
+            val userId = principal.subject?.toUuidOrNull()
+                ?: return@patch call.respond(HttpStatusCode.BadRequest, mapOf("error" to "invalid_subject"))
+
+            val req = call.receive<UpdateProfileRq>()
+            // Аватары отключены: avatarUrl игнорируем
+            val updated = service.updateProfile(userId, req.username, req.displayName, req.bio, null)
+                ?: return@patch call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "update_failed"))
+
+            call.respond(updated)
         }
     }
 }

@@ -17,6 +17,8 @@ import org.koin.compose.koinInject
 @Composable
 fun AppNavigationRoot(
     modifier: Modifier = Modifier,
+    darkTheme: Boolean,
+    onToggleTheme: (Boolean) -> Unit
 ) {
     val tokenStorage: TokenStorage = koinInject()
     val backStack: SnapshotStateList<Route> = remember { mutableStateListOf(LoginRoute) }
@@ -57,7 +59,9 @@ fun AppNavigationRoot(
                     onLogout = {
                         backStack.clear()
                         backStack.add(LoginRoute)
-                    }
+                    },
+                    darkTheme = darkTheme,
+                    onToggleTheme = onToggleTheme
                 )
             }
         }

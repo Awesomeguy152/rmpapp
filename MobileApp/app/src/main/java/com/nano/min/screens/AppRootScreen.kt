@@ -21,8 +21,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -32,9 +35,19 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.DoneAll
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.outlined.PushPin
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Badge
@@ -55,6 +68,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -64,6 +78,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -75,6 +90,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -89,21 +105,37 @@ import com.nano.min.viewmodel.MessageItem
 import com.nano.min.viewmodel.ContactSuggestion
 import com.nano.min.viewmodel.MemberInfo
 import com.nano.min.network.ConversationType
+import com.nano.min.network.MessageStatus
+import com.nano.min.viewmodel.PendingAttachment
 import org.koin.androidx.compose.koinViewModel
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
+import android.util.Base64
+import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppRootScreen(
 	onLogout: () -> Unit,
+	darkTheme: Boolean,
+	onToggleTheme: (Boolean) -> Unit,
 	viewModel: ChatsViewModel = koinViewModel()
 ) {
 	val conversationState by viewModel.conversationState.collectAsStateWithLifecycle()
 	val detailState by viewModel.detailState.collectAsStateWithLifecycle()
 
 	val snackbarHostState = remember { SnackbarHostState() }
-	val context = LocalContext.current
 	var showCreateSheet by rememberSaveable { mutableStateOf(false) }
 	val bottomSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+	val context = LocalContext.current
+	val scope = rememberCoroutineScope()
 
 	LaunchedEffect(viewModel) {
 		viewModel.events.collect { event ->
@@ -113,6 +145,31 @@ fun AppRootScreen(
 					snackbarHostState.showSnackbar(context.getString(R.string.session_expired))
 					onLogout()
 				}
+			}
+		}
+	}
+
+	val attachmentPicker = rememberLauncherForActivityResult(
+		contract = ActivityResultContracts.GetMultipleContents()
+	) { uris ->
+		scope.launch(Dispatchers.IO) {
+			val attachments = uris.mapNotNull { uri ->
+				context.contentResolver.openInputStream(uri)?.use { stream ->
+					val fileName = resolveFileName(context, uri) ?: "file"
+					val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
+					val base64 = stream.readBytes().let { bytes ->
+						Base64.encodeToString(bytes, Base64.NO_WRAP)
+					}
+					PendingAttachment(
+						id = UUID.randomUUID().toString(),
+						fileName = fileName,
+						contentType = mime,
+						dataBase64 = base64
+					)
+				}
+			}
+			withContext(Dispatchers.Main) {
+				viewModel.addPendingAttachments(attachments)
 			}
 		}
 	}
@@ -200,6 +257,12 @@ fun AppRootScreen(
 					}
 				},
 				actions = {
+					IconButton(onClick = { onToggleTheme(!darkTheme) }) {
+						Icon(
+							imageVector = if (darkTheme) Icons.Filled.LightMode else Icons.Filled.DarkMode,
+							contentDescription = stringResource(R.string.action_toggle_theme)
+						)
+					}
 					IconButton(onClick = {
 						viewModel.logout()
 						onLogout()
@@ -261,7 +324,11 @@ fun AppRootScreen(
 							state = detailState,
 							currentUserId = conversationState.profileId,
 							onMessageChange = viewModel::updateMessageInput,
+							onPickAttachments = { attachmentPicker.launch("*/*") },
+							onRemoveAttachment = viewModel::removePendingAttachment,
 							onSend = { viewModel.sendMessage() },
+							onEditMessage = viewModel::editMessage,
+							onDeleteMessage = viewModel::deleteMessage,
 							onUpdateTopic = viewModel::updateCurrentConversationTopic,
 							onAddMembers = viewModel::addMembersToCurrentConversation,
 							onRemoveMember = viewModel::removeMemberFromCurrentConversation,
@@ -275,6 +342,10 @@ fun AppRootScreen(
 							onCreateConversation = { showCreateSheet = true },
 							onRefresh = { viewModel.refreshConversations() },
 							onSelectConversation = { viewModel.selectConversation(it) },
+							onSearchQueryChange = viewModel::updateSearchQuery,
+							onOpenMessageFromSearch = { convoId, _ -> viewModel.selectConversation(convoId) },
+							onStartChatWithUser = viewModel::startDirectConversationFromSearch,
+							onTogglePin = { id, pin -> viewModel.togglePin(id, pin) },
 							modifier = Modifier.fillMaxSize()
 						)
 					}
@@ -286,6 +357,10 @@ fun AppRootScreen(
 							onCreateConversation = { showCreateSheet = true },
 							onRefresh = { viewModel.refreshConversations() },
 							onSelectConversation = { viewModel.selectConversation(it) },
+							onSearchQueryChange = viewModel::updateSearchQuery,
+							onOpenMessageFromSearch = { convoId, _ -> viewModel.selectConversation(convoId) },
+							onStartChatWithUser = viewModel::startDirectConversationFromSearch,
+							onTogglePin = { id, pin -> viewModel.togglePin(id, pin) },
 							modifier = Modifier
 								.widthIn(max = 360.dp)
 								.fillMaxHeight()
@@ -300,7 +375,11 @@ fun AppRootScreen(
 							state = detailState,
 							currentUserId = conversationState.profileId,
 							onMessageChange = viewModel::updateMessageInput,
+							onPickAttachments = { attachmentPicker.launch("*/*") },
+							onRemoveAttachment = viewModel::removePendingAttachment,
 							onSend = { viewModel.sendMessage() },
+							onEditMessage = viewModel::editMessage,
+							onDeleteMessage = viewModel::deleteMessage,
 							onUpdateTopic = viewModel::updateCurrentConversationTopic,
 							onAddMembers = viewModel::addMembersToCurrentConversation,
 							onRemoveMember = viewModel::removeMemberFromCurrentConversation,
@@ -321,6 +400,10 @@ private fun ConversationListPanel(
 	onCreateConversation: () -> Unit,
 	onRefresh: () -> Unit,
 	onSelectConversation: (String) -> Unit,
+	onSearchQueryChange: (String) -> Unit,
+	onOpenMessageFromSearch: (String, String) -> Unit,
+	onStartChatWithUser: (String) -> Unit,
+	onTogglePin: (String, Boolean) -> Unit,
 	modifier: Modifier = Modifier
 ) {
 	val colorScheme = MaterialTheme.colorScheme
@@ -330,6 +413,136 @@ private fun ConversationListPanel(
 			.padding(16.dp),
 		verticalArrangement = Arrangement.spacedBy(16.dp)
 	) {
+		OutlinedTextField(
+			value = state.searchQuery,
+			onValueChange = onSearchQueryChange,
+			placeholder = { Text(stringResource(R.string.search_messages_placeholder)) },
+			leadingIcon = { Icon(imageVector = Icons.Filled.Search, contentDescription = null) },
+			trailingIcon = {
+				if (state.searchQuery.isNotBlank()) {
+					IconButton(onClick = { onSearchQueryChange("") }) {
+						Icon(imageVector = Icons.Filled.Clear, contentDescription = stringResource(R.string.action_clear_input))
+					}
+				}
+			},
+			singleLine = true,
+			shape = RoundedCornerShape(18.dp),
+			colors = OutlinedTextFieldDefaults.colors(
+				focusedBorderColor = colorScheme.primary,
+				unfocusedBorderColor = colorScheme.outlineVariant,
+				focusedContainerColor = colorScheme.surface,
+				unfocusedContainerColor = colorScheme.surface
+			)
+		)
+
+		if (state.isSearching) {
+			LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+		}
+
+		state.searchError?.let { error ->
+			Surface(
+				color = MaterialTheme.colorScheme.errorContainer,
+				contentColor = MaterialTheme.colorScheme.onErrorContainer,
+				shape = RoundedCornerShape(18.dp),
+				modifier = Modifier.fillMaxWidth()
+			) {
+				Text(text = error, modifier = Modifier.padding(12.dp))
+			}
+		}
+
+		if (state.searchQuery.isNotBlank()) {
+			Surface(
+				shape = RoundedCornerShape(20.dp),
+				tonalElevation = 4.dp,
+				modifier = Modifier.fillMaxWidth()
+			) {
+				Column(
+					modifier = Modifier
+						.fillMaxWidth()
+						.verticalScroll(rememberScrollState())
+						.padding(14.dp),
+					verticalArrangement = Arrangement.spacedBy(12.dp)
+				) {
+					if (state.searchMessageResults.isNotEmpty()) {
+						Text(
+							text = stringResource(R.string.search_messages_results),
+							style = MaterialTheme.typography.titleSmall,
+							color = MaterialTheme.colorScheme.onSurface
+						)
+						state.searchMessageResults.forEach { result ->
+							Surface(
+								shape = RoundedCornerShape(14.dp),
+								modifier = Modifier
+									.fillMaxWidth()
+									.clickable { onOpenMessageFromSearch(result.conversationId, result.id) },
+								color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+							) {
+								Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+									Text(
+										text = result.conversationTitle,
+										style = MaterialTheme.typography.labelMedium,
+										color = MaterialTheme.colorScheme.primary
+									)
+									Text(
+										text = result.preview,
+										style = MaterialTheme.typography.bodyMedium,
+										color = MaterialTheme.colorScheme.onSurface,
+										maxLines = 2,
+										overflow = TextOverflow.Ellipsis
+									)
+									Text(
+										text = result.timestamp,
+										style = MaterialTheme.typography.labelSmall,
+										color = MaterialTheme.colorScheme.onSurfaceVariant
+									)
+								}
+							}
+						}
+					}
+
+					if (state.searchUserResults.isNotEmpty()) {
+						Text(
+							text = stringResource(R.string.search_contacts_results),
+							style = MaterialTheme.typography.titleSmall,
+							color = MaterialTheme.colorScheme.onSurface
+						)
+						state.searchUserResults.forEach { user ->
+							Surface(
+								shape = RoundedCornerShape(14.dp),
+								modifier = Modifier.fillMaxWidth(),
+								color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+							) {
+								Row(
+									modifier = Modifier
+										.fillMaxWidth()
+										.padding(12.dp),
+									horizontalArrangement = Arrangement.SpaceBetween,
+									verticalAlignment = Alignment.CenterVertically
+								) {
+									Column(modifier = Modifier.weight(1f)) {
+										Text(
+											text = user.email,
+											style = MaterialTheme.typography.bodyMedium,
+											color = MaterialTheme.colorScheme.onSurface,
+											maxLines = 1,
+											overflow = TextOverflow.Ellipsis
+										)
+										Text(
+											text = user.role,
+											style = MaterialTheme.typography.labelSmall,
+											color = MaterialTheme.colorScheme.onSurfaceVariant
+										)
+									}
+									Button(onClick = { onStartChatWithUser(user.id) }) {
+										Text(text = stringResource(R.string.conversation_create))
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
 		Surface(
 			shape = RoundedCornerShape(28.dp),
 			tonalElevation = 8.dp,
@@ -481,7 +694,8 @@ private fun ConversationListPanel(
 							ConversationListItem(
 								conversation = conversation,
 								isSelected = conversation.id == selectedConversationId,
-								onClick = { onSelectConversation(conversation.id) }
+								onClick = { onSelectConversation(conversation.id) },
+								onTogglePin = { pin -> onTogglePin(conversation.id, pin) }
 							)
 						}
 					}
@@ -495,7 +709,8 @@ private fun ConversationListPanel(
 private fun ConversationListItem(
 	conversation: ConversationItem,
 	isSelected: Boolean,
-	onClick: () -> Unit
+	onClick: () -> Unit,
+	onTogglePin: (Boolean) -> Unit
 ) {
 	val colorScheme = MaterialTheme.colorScheme
 	val accentColor = if (isSelected) colorScheme.primary else colorScheme.primary.copy(alpha = 0.18f)
@@ -540,6 +755,16 @@ private fun ConversationListItem(
 								text = time,
 								style = MaterialTheme.typography.labelSmall,
 								color = colorScheme.onSurfaceVariant
+							)
+						}
+						IconButton(
+							onClick = { onTogglePin(conversation.pinnedAt == null) },
+							modifier = Modifier.size(32.dp)
+						) {
+							Icon(
+								imageVector = if (conversation.pinnedAt != null) Icons.Filled.PushPin else Icons.Outlined.PushPin,
+								contentDescription = null,
+								tint = if (conversation.pinnedAt != null) colorScheme.primary else colorScheme.onSurfaceVariant
 							)
 						}
 					}
@@ -752,7 +977,11 @@ private fun ConversationDetailPanel(
 	state: ConversationDetailUiState,
 	currentUserId: String?,
 	onMessageChange: (String) -> Unit,
+	onPickAttachments: () -> Unit,
+	onRemoveAttachment: (String) -> Unit,
 	onSend: () -> Unit,
+	onEditMessage: (String, String) -> Unit,
+	onDeleteMessage: (String) -> Unit,
 	onUpdateTopic: (String) -> Unit,
 	onAddMembers: (String) -> Unit,
 	onRemoveMember: (String) -> Unit,
@@ -807,6 +1036,50 @@ private fun ConversationDetailPanel(
 				.padding(20.dp),
 			verticalArrangement = Arrangement.spacedBy(16.dp)
 		) {
+			var editingMessage by rememberSaveable { mutableStateOf<MessageItem?>(null) }
+			var editingText by rememberSaveable { mutableStateOf("") }
+
+			if (editingMessage != null) {
+				AlertDialog(
+					onDismissRequest = {
+						editingMessage = null
+						editingText = ""
+					},
+					title = { Text(stringResource(R.string.edit_message_title)) },
+					text = {
+						Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+							OutlinedTextField(
+								value = editingText,
+								onValueChange = { editingText = it },
+								placeholder = { Text(stringResource(R.string.edit_message_hint)) },
+								maxLines = 4,
+								modifier = Modifier.fillMaxWidth()
+							)
+						}
+					},
+					confirmButton = {
+						TextButton(
+							enabled = editingText.isNotBlank(),
+							onClick = {
+								editingMessage?.let { onEditMessage(it.id, editingText) }
+								editingMessage = null
+								editingText = ""
+							}
+						) {
+							Text(stringResource(R.string.action_save))
+						}
+					},
+					dismissButton = {
+						TextButton(onClick = {
+							editingMessage = null
+							editingText = ""
+						}) {
+							Text(stringResource(R.string.action_cancel))
+						}
+					}
+				)
+			}
+
 			LazyColumn(
 				modifier = Modifier
 					.weight(1f)
@@ -951,14 +1224,93 @@ private fun ConversationDetailPanel(
 					items = state.messages,
 					key = { it.id }
 				) { message ->
-					MessageBubble(message = message)
+					Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+						MessageBubble(message = message)
+						if (message.isMine && !message.isDeleted) {
+							Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.align(Alignment.End)) {
+								AssistChip(
+									onClick = {
+										editingMessage = message
+										editingText = message.text
+									},
+									label = { Text(stringResource(R.string.action_edit)) },
+									leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) }
+								)
+								AssistChip(
+									onClick = { onDeleteMessage(message.id) },
+									label = { Text(stringResource(R.string.action_delete)) },
+									leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null) },
+									colors = AssistChipDefaults.assistChipColors(
+										containerColor = MaterialTheme.colorScheme.errorContainer,
+										labelColor = MaterialTheme.colorScheme.onErrorContainer,
+										leadingIconContentColor = MaterialTheme.colorScheme.onErrorContainer
+									)
+								)
+							}
+						}
+					}
 				}
 			}
 		}
 
-		val sendEnabled = state.messageInput.isNotBlank() && !state.isSending
+		val hasAttachments = state.attachments.isNotEmpty()
+		val sendEnabled = (state.messageInput.isNotBlank() || hasAttachments) && !state.isSending
+
+		if (hasAttachments) {
+			LazyRow(
+				modifier = Modifier.fillMaxWidth(),
+				horizontalArrangement = Arrangement.spacedBy(8.dp)
+			) {
+				items(state.attachments, key = { it.id }) { attachment ->
+					Surface(
+						shape = RoundedCornerShape(16.dp),
+						color = colorScheme.surfaceVariant,
+						border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.5f))
+					) {
+						Row(
+							modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+							horizontalArrangement = Arrangement.spacedBy(8.dp),
+							verticalAlignment = Alignment.CenterVertically
+						) {
+							Icon(
+								imageVector = Icons.Filled.AttachFile,
+								contentDescription = null,
+								tint = colorScheme.onSurfaceVariant
+							)
+							Column(modifier = Modifier.weight(1f)) {
+								Text(
+									text = attachment.fileName,
+									style = MaterialTheme.typography.bodySmall,
+									color = colorScheme.onSurface
+								)
+								Text(
+									text = attachment.contentType,
+									style = MaterialTheme.typography.labelSmall,
+									color = colorScheme.onSurfaceVariant
+								)
+							}
+							IconButton(onClick = { onRemoveAttachment(attachment.id) }) {
+								Icon(
+									imageVector = Icons.Filled.Clear,
+									contentDescription = stringResource(R.string.remove_attachment)
+								)
+							}
+						}
+					}
+				}
+			}
+		}
 
 		Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+			IconButton(
+				onClick = onPickAttachments,
+				enabled = !state.isSending
+			) {
+				Icon(
+					imageVector = Icons.Filled.AttachFile,
+					contentDescription = stringResource(R.string.add_attachment)
+				)
+			}
 			OutlinedTextField(
 				value = state.messageInput,
 				onValueChange = onMessageChange,
@@ -1173,25 +1525,121 @@ private fun MessageBubble(message: MessageItem) {
 		} else {
 			RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomEnd = 20.dp, bottomStart = 6.dp)
 		}
-		Surface(
-			color = if (message.isMine) colorScheme.primary else colorScheme.surface,
-			contentColor = if (message.isMine) colorScheme.onPrimary else colorScheme.onSurface,
-			shape = bubbleShape,
-			border = if (message.isMine) null else BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.35f)),
-			tonalElevation = if (message.isMine) 6.dp else 2.dp,
-			shadowElevation = if (message.isMine) 6.dp else 0.dp
-		) {
-			Text(
-				text = message.text,
-				modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
-				style = MaterialTheme.typography.bodyMedium
-			)
+		val showTextBubble = message.text.isNotBlank() || message.isDeleted
+		val bubbleColor = when {
+			message.isDeleted -> colorScheme.surfaceVariant.copy(alpha = if (message.isMine) 0.4f else 0.65f)
+			message.isMine -> colorScheme.primary
+			else -> colorScheme.surface
 		}
-		Spacer(modifier = Modifier.height(4.dp))
-		Text(
-			text = message.timestamp,
-			style = MaterialTheme.typography.labelSmall,
-			color = colorScheme.onSurfaceVariant
-		)
+		val bubbleContentColor = when {
+			message.isDeleted -> colorScheme.onSurfaceVariant
+			message.isMine -> colorScheme.onPrimary
+			else -> colorScheme.onSurface
+		}
+		if (showTextBubble) {
+			Surface(
+				color = bubbleColor,
+				contentColor = bubbleContentColor,
+				shape = bubbleShape,
+				border = if (message.isMine || message.isDeleted) null else BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.35f)),
+				tonalElevation = if (message.isMine && !message.isDeleted) 6.dp else 2.dp,
+				shadowElevation = if (message.isMine && !message.isDeleted) 6.dp else 0.dp,
+				modifier = Modifier.alpha(if (message.isDeleted) 0.8f else 1f)
+			) {
+				Text(
+					text = if (message.isDeleted) "Сообщение удалено" else message.text,
+					modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
+					style = MaterialTheme.typography.bodyMedium,
+					color = bubbleContentColor,
+					fontStyle = if (message.isDeleted) FontStyle.Italic else FontStyle.Normal
+				)
+			}
+		}
+
+		if (message.attachments.isNotEmpty() && !message.isDeleted) {
+			Spacer(modifier = Modifier.height(6.dp))
+			Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+				message.attachments.forEach { attachment ->
+					Surface(
+						shape = RoundedCornerShape(14.dp),
+						color = colorScheme.surfaceVariant.copy(alpha = if (message.isMine) 0.45f else 0.85f),
+						border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.4f))
+					) {
+						Row(
+							modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+							horizontalArrangement = Arrangement.spacedBy(10.dp),
+							verticalAlignment = Alignment.CenterVertically
+						) {
+							Icon(
+								imageVector = Icons.Filled.AttachFile,
+								contentDescription = null,
+								tint = colorScheme.onSurfaceVariant
+							)
+							Column(modifier = Modifier.weight(1f)) {
+								Text(
+									text = attachment.fileName,
+									style = MaterialTheme.typography.bodyMedium,
+									color = colorScheme.onSurface
+								)
+								Text(
+									text = attachment.contentType,
+									style = MaterialTheme.typography.labelSmall,
+									color = colorScheme.onSurfaceVariant
+								)
+							}
+						}
+					}
+				}
+			}
+		}
+
+		if (showTextBubble || message.attachments.isNotEmpty()) {
+			Spacer(modifier = Modifier.height(4.dp))
+		}
+		Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+			if (message.isMine && !message.isDeleted) {
+				val (statusIcon, statusColor) = when (message.status) {
+					MessageStatus.SENT -> Icons.Filled.Done to MaterialTheme.colorScheme.onSurfaceVariant
+					MessageStatus.DELIVERED -> Icons.Filled.DoneAll to MaterialTheme.colorScheme.onSurfaceVariant
+					MessageStatus.READ -> Icons.Filled.DoneAll to MaterialTheme.colorScheme.primary
+					else -> Icons.Filled.Done to MaterialTheme.colorScheme.onSurfaceVariant
+				}
+				Icon(
+					imageVector = statusIcon,
+					contentDescription = null,
+					tint = statusColor,
+					modifier = Modifier.size(16.dp)
+				)
+			}
+			Text(
+				text = message.timestamp,
+				style = MaterialTheme.typography.labelSmall,
+				color = colorScheme.onSurfaceVariant
+			)
+			if (message.isEdited && !message.isDeleted) {
+				Text(
+					text = "(изменено)",
+					style = MaterialTheme.typography.labelSmall,
+					color = colorScheme.onSurfaceVariant
+				)
+			}
+			if (message.isDeleted) {
+				Text(
+					text = "(удалено)",
+					style = MaterialTheme.typography.labelSmall,
+					color = colorScheme.onSurfaceVariant,
+					fontStyle = FontStyle.Italic
+				)
+			}
+		}
 	}
+}
+
+private fun resolveFileName(context: Context, uri: Uri): String? {
+	return context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+		?.use { cursor ->
+			val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+			if (nameIndex == -1) return null
+			if (cursor.moveToFirst()) cursor.getString(nameIndex) else null
+		}
 }

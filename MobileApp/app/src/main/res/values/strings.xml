@@ -75,5 +75,18 @@
     <string name="conversation_members_manage_hint">Add user IDs separated by comma.</string>
     <string name="conversation_add_members">Add participants</string>
     <string name="conversation_member_remove">Remove participant</string>
+    <string name="add_attachment">Add attachment</string>
+    <string name="remove_attachment">Remove attachment</string>
+    <string name="search_messages_placeholder">Search messages and contacts</string>
+    <string name="search_messages_results">Found messages</string>
+    <string name="search_contacts_results">Found contacts</string>
+    <string name="error_search_messages">Couldn\'t perform search. Try again.</string>
+    <string name="action_toggle_theme">Toggle theme</string>
+    <string name="edit_message_title">Edit message</string>
+    <string name="edit_message_hint">Update message text</string>
+    <string name="action_save">Save</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_delete">Delete</string>
 
 </resources>

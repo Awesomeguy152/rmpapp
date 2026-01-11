@@ -43,4 +43,5 @@ gradle-user-home
 
 scan-journal.log
 
-**/.claude/settings.local.json
+**/.claude/settings.local.jsonfirebase-service-account.json
+firebase-service-account.json

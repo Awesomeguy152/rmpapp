@@ -56,13 +56,30 @@ class UserService {
             ?.toProfile()
     }
 
+    fun updateProfile(userId: UUID, username: String?, displayName: String?, bio: String?, avatarUrl: String? = null): UserProfileDTO? = transaction {
+        val userEntityId = EntityID(userId, UserTable)
+
+        UserTable.update({ UserTable.id eq userEntityId }) {
+            if (username != null) it[UserTable.username] = username.ifBlank { null }
+            if (displayName != null) it[UserTable.displayName] = displayName
+            if (bio != null) it[UserTable.bio] = bio
+            // avatarUrl обновлять больше не даём: фото профиля выключено
+        }
+
+        findProfile(userId)
+    }
+
     fun searchContacts(requesterId: UUID, query: String?, limit: Int): List<UserProfileDTO> = transaction {
         val base = UserTable.select { UserTable.id neq EntityID(requesterId, UserTable) }
         val searchQuery = query?.trim().takeUnless { it.isNullOrEmpty() }
 
         val filtered = if (searchQuery != null) {
             val pattern = "%$searchQuery%"
-            base.andWhere { UserTable.email.ilike(pattern) }
+            base.andWhere { 
+                UserTable.email.ilike(pattern) or 
+                UserTable.username.ilike(pattern) or 
+                UserTable.displayName.ilike(pattern) 
+            }
         } else {
             base
         }
@@ -77,10 +94,14 @@ class UserService {
         id = this[UserTable.id].value.toString(),
         email = this[UserTable.email],
         role = Role.valueOf(this[UserTable.role]),
-        createdAt = this[UserTable.createdAt].toString()
+        createdAt = this[UserTable.createdAt].toString(),
+        username = this[UserTable.username],
+        displayName = this[UserTable.displayName],
+        bio = this[UserTable.bio],
+        avatarUrl = this[UserTable.avatarUrl]
     )
 
-    private fun Column<String>.ilike(pattern: String): Op<Boolean> = object : Op<Boolean>() {
+    private fun <T : String?> Expression<T>.ilike(pattern: String): Op<Boolean> = object : Op<Boolean>() {
         override fun toQueryBuilder(queryBuilder: QueryBuilder) {
             queryBuilder {
                 append(this@ilike)

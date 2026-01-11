@@ -1,8 +1,5 @@
 package com.nano.min.ui.theme
 
-import android.app.Activity
-import android.os.Build
-import android.provider.CalendarContract
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -14,24 +11,30 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 private val LightColorScheme = lightColorScheme(
-    primary = TextGray,
-    secondary = DarkGray,
-    tertiary = TextGray,
-    surface = Color.White,
-    onSurface = TextGray
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
+    primary = PrimaryBlue,
     onPrimary = Color.White,
+    secondary = TextGray,
     onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    tertiary = AccentLime,
+    background = LightBackground,
+    onBackground = Color(0xFF111827),
+    surface = Color.White,
+    onSurface = Color(0xFF111827),
+    outlineVariant = LightOutline
 )
 
-private val DarkColorScheme = LightColorScheme
+private val DarkColorScheme = darkColorScheme(
+    primary = AccentLime,
+    onPrimary = Color(0xFF0A0F0A),
+    secondary = Color(0xFF7DD3FC),
+    onSecondary = Color(0xFF081018),
+    tertiary = PrimaryBlue,
+    background = DarkBackground,
+    onBackground = Color(0xFFE5E7EB),
+    surface = DarkSurface,
+    onSurface = Color(0xFFE5E7EB),
+    outlineVariant = DarkOutline
+)
 
 @Composable
 fun MinTheme(
@@ -41,11 +44,10 @@ fun MinTheme(
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
-//        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-//            val context = LocalContext.current
-//            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-//        }
-
+        dynamicColor && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S -> {
+            val context = LocalContext.current
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        }
         darkTheme -> DarkColorScheme
         else -> LightColorScheme
     }

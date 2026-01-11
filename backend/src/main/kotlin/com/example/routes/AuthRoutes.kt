@@ -18,7 +18,7 @@ import java.util.Date
 data class RegisterRq(
     val email: String,
     val password: String,
-    val role: Role,
+    val role: Role = Role.USER,
     val adminSecret: String? = null
 )
 

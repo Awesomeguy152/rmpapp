@@ -8,6 +8,7 @@ import com.nano.min.network.ChatService
 import com.nano.min.network.ConversationSummaryDto
 import com.nano.min.network.ErrorResponse
 import com.nano.min.network.MessageDto
+import com.nano.min.network.MessageStatus
 import com.nano.min.network.MeResponse
 import com.nano.min.network.ChatEventDto
 import com.nano.min.network.UserProfileDto
@@ -17,6 +18,7 @@ import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -40,6 +42,11 @@ data class ConversationsUiState(
     val isLoading: Boolean = false,
     val isSearchingContacts: Boolean = false,
     val contactSuggestions: List<ContactSuggestion> = emptyList(),
+    val searchQuery: String = "",
+    val searchMessageResults: List<MessageSearchResult> = emptyList(),
+    val searchUserResults: List<ContactSuggestion> = emptyList(),
+    val isSearching: Boolean = false,
+    val searchError: String? = null,
     val error: String? = null
 )
 
@@ -49,6 +56,7 @@ data class ConversationDetailUiState(
     val isLoading: Boolean = false,
     val isSending: Boolean = false,
     val messageInput: String = "",
+    val attachments: List<PendingAttachment> = emptyList(),
     val error: String? = null
 )
 
@@ -59,6 +67,7 @@ data class ConversationItem(
     val unreadCount: Long,
     val lastMessageTime: String?,
     val members: List<MemberInfo>,
+    val pinnedAt: String? = null,
     val raw: ConversationSummaryDto
 )
 
@@ -66,7 +75,33 @@ data class MessageItem(
     val id: String,
     val text: String,
     val timestamp: String,
-    val isMine: Boolean
+    val isMine: Boolean,
+    val attachments: List<MessageAttachment>,
+    val isDeleted: Boolean = false,
+    val isEdited: Boolean = false,
+    val status: MessageStatus = MessageStatus.DELIVERED,
+    val readBy: List<String> = emptyList()
+)
+
+data class MessageSearchResult(
+    val id: String,
+    val conversationId: String,
+    val conversationTitle: String,
+    val preview: String,
+    val timestamp: String
+)
+
+data class MessageAttachment(
+    val id: String,
+    val fileName: String,
+    val contentType: String
+)
+
+data class PendingAttachment(
+    val id: String = UUID.randomUUID().toString(),
+    val fileName: String,
+    val contentType: String,
+    val dataBase64: String
 )
 
 data class ContactSuggestion(
@@ -97,19 +132,58 @@ class ChatsViewModel(
 
     private val _detailState = MutableStateFlow(ConversationDetailUiState())
     val detailState: StateFlow<ConversationDetailUiState> = _detailState.asStateFlow()
-
     private val _events = MutableSharedFlow<ChatsEvent>()
     val events: SharedFlow<ChatsEvent> = _events.asSharedFlow()
 
     private var me: MeResponse? = null
     private var selectedConversationId: String? = null
     private var contactSearchJob: Job? = null
+    private var globalSearchJob: Job? = null
     private var updatesJob: Job? = null
 
     private val json = Json { ignoreUnknownKeys = true }
     private val timeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
     private val dateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM HH:mm")
     private val dateOnlyFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy")
+
+    fun editMessage(messageId: String, newBody: String) {
+        val conversationId = selectedConversationId ?: return
+        if (newBody.isBlank()) {
+            viewModelScope.launch { _events.emit(ChatsEvent.ShowMessage(getString(R.string.error_empty_message))) }
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                val updated = chatService.editMessage(messageId, newBody.trim())
+                val meId = me?.id
+                val updatedItem = updated.toMessageItem(meId, _detailState.value.conversation?.members ?: emptyList())
+                _detailState.update { state ->
+                    state.copy(messages = state.messages.map { if (it.id == messageId) updatedItem else it })
+                }
+                refreshConversations(conversationId)
+            } catch (t: Throwable) {
+                handleNetworkError(t, R.string.error_send_message)
+            }
+        }
+    }
+
+    fun deleteMessage(messageId: String) {
+        val conversationId = selectedConversationId ?: return
+        viewModelScope.launch {
+            try {
+                val updated = chatService.deleteMessage(messageId)
+                val meId = me?.id
+                val updatedItem = updated.toMessageItem(meId, _detailState.value.conversation?.members ?: emptyList())
+                _detailState.update { state ->
+                    state.copy(messages = state.messages.map { if (it.id == messageId) updatedItem else it })
+                }
+                refreshConversations(conversationId)
+            } catch (t: Throwable) {
+                handleNetworkError(t, R.string.error_send_message)
+            }
+        }
+    }
 
     init {
         viewModelScope.launch {
@@ -144,6 +218,66 @@ class ChatsViewModel(
         _detailState.value = ConversationDetailUiState()
     }
 
+    fun updateSearchQuery(value: String) {
+        _conversationState.update { it.copy(searchQuery = value) }
+        if (value.isBlank()) {
+            globalSearchJob?.cancel()
+            _conversationState.update {
+                it.copy(
+                    searchMessageResults = emptyList(),
+                    searchUserResults = emptyList(),
+                    isSearching = false,
+                    searchError = null
+                )
+            }
+            return
+        }
+        performSearch(value.trim())
+    }
+
+    private fun performSearch(query: String) {
+        globalSearchJob?.cancel()
+        globalSearchJob = viewModelScope.launch {
+            _conversationState.update { it.copy(isSearching = true, searchError = null) }
+            try {
+                val conversations = _conversationState.value.conversations.associateBy { it.id }
+                val messagesDeferred = async { chatService.searchMessages(query = query) }
+                val usersDeferred = async { chatService.searchUsers(query) }
+
+                val messages = messagesDeferred.await().map { dto ->
+                    val title = conversations[dto.conversationId]?.title
+                        ?: dto.conversationId.takeLast(6)
+                    dto.toSearchResult(title)
+                }
+                val users = usersDeferred.await().map { dto -> dto.toSuggestion() }
+
+                _conversationState.update {
+                    it.copy(
+                        isSearching = false,
+                        searchMessageResults = messages,
+                        searchUserResults = users,
+                        searchError = null
+                    )
+                }
+            } catch (t: Throwable) {
+                _conversationState.update { it.copy(isSearching = false) }
+                handleNetworkError(t, R.string.error_search_messages)
+                _conversationState.update { it.copy(searchError = getString(R.string.error_search_messages)) }
+            }
+        }
+    }
+
+    fun startDirectConversationFromSearch(userId: String) {
+        viewModelScope.launch {
+            try {
+                val summary = chatService.createDirectConversation(memberId = userId, topic = null)
+                refreshConversations(summary.id)
+            } catch (t: Throwable) {
+                handleNetworkError(t, R.string.error_create_conversation)
+            }
+        }
+    }
+
     fun updateMessageInput(value: String) {
         _detailState.update { it.copy(messageInput = value) }
     }
@@ -153,7 +287,7 @@ class ChatsViewModel(
         val currentState = _detailState.value
         val conversation = currentState.conversation ?: return
         val message = currentState.messageInput.trim()
-        if (message.isEmpty()) {
+        if (message.isEmpty() && currentState.attachments.isEmpty()) {
             _detailState.update { it.copy(error = getString(R.string.error_empty_message)) }
             return
         }
@@ -161,13 +295,18 @@ class ChatsViewModel(
         viewModelScope.launch {
             _detailState.update { it.copy(isSending = true, error = null) }
             try {
-                val dto = chatService.sendMessage(conversationId, message)
+                val dto = chatService.sendMessage(
+                    conversationId = conversationId,
+                    body = message,
+                    attachments = currentState.attachments.map { it.toPayload() }
+                )
                 val meId = me?.id
-                val messageItem = dto.toMessageItem(meId)
+                val messageItem = dto.toMessageItem(meId, conversation.members)
                 _detailState.update {
                     it.copy(
                         isSending = false,
                         messageInput = "",
+                        attachments = emptyList(),
                         messages = it.messages + messageItem
                     )
                 }
@@ -176,6 +315,19 @@ class ChatsViewModel(
                 _detailState.update { it.copy(isSending = false) }
                 handleNetworkError(t, R.string.error_send_message)
             }
+        }
+    }
+
+    fun addPendingAttachments(newOnes: List<PendingAttachment>) {
+        if (newOnes.isEmpty()) return
+        _detailState.update { state ->
+            state.copy(attachments = (state.attachments + newOnes).distinctBy { it.id })
+        }
+    }
+
+    fun removePendingAttachment(id: String) {
+        _detailState.update { state ->
+            state.copy(attachments = state.attachments.filterNot { it.id == id })
         }
     }
 
@@ -224,6 +376,21 @@ class ChatsViewModel(
                 val normalizedTopic = newTopic.trim().ifBlank { null }
                 chatService.updateConversationTopic(conversationId, normalizedTopic)
                 _events.emit(ChatsEvent.ShowMessage(getString(R.string.message_topic_updated)))
+                refreshConversationsInternal(selectConversation = conversationId)
+            } catch (t: Throwable) {
+                handleNetworkError(t, R.string.error_update_topic)
+            }
+        }
+    }
+
+    fun togglePin(conversationId: String, pin: Boolean) {
+        viewModelScope.launch {
+            try {
+                if (pin) {
+                    chatService.pinConversation(conversationId)
+                } else {
+                    chatService.unpinConversation(conversationId)
+                }
                 refreshConversationsInternal(selectConversation = conversationId)
             } catch (t: Throwable) {
                 handleNetworkError(t, R.string.error_update_topic)
@@ -335,6 +502,44 @@ class ChatsViewModel(
     private suspend fun handleRealtimeEvent(event: ChatEventDto) {
         when (event.type) {
             "message_created" -> handleMessageCreatedEvent(event)
+            "conversation_read" -> handleConversationReadEvent(event)
+        }
+    }
+
+    private fun handleConversationReadEvent(event: ChatEventDto) {
+        val conversationId = event.conversationId ?: return
+        val readerId = event.readerId ?: return
+        val lastReadMessageId = event.messageId
+
+        val current = selectedConversationId
+        if (current != conversationId) return
+
+        _detailState.update { state ->
+            if (state.conversation == null) return@update state
+            val members = state.conversation.members
+            val updatedMessages = state.messages.map { msg ->
+                if (!msg.isMine || msg.isDeleted) return@map msg
+                if (readerId == me?.id) return@map msg
+
+                val shouldMark = when {
+                    lastReadMessageId == null -> true
+                    else -> state.messages.indexOfFirst { it.id == lastReadMessageId }
+                        .takeIf { it >= 0 }
+                        ?.let { idx ->
+                            val msgIdx = state.messages.indexOfFirst { it.id == msg.id }
+                            msgIdx >= 0 && msgIdx <= idx
+                        } ?: false
+                }
+
+                if (shouldMark) {
+                    msg.copy(
+                        status = MessageStatus.READ,
+                        readBy = (msg.readBy + readerId).distinct()
+                    )
+                } else msg
+            }
+
+            state.copy(messages = updatedMessages)
         }
     }
 
@@ -350,7 +555,8 @@ class ChatsViewModel(
 
         if (currentSelection == conversationId && event.message != null) {
             val meId = currentUserId
-            val incoming = event.message.toMessageItem(meId)
+            val members = _detailState.value.conversation?.members ?: emptyList()
+            val incoming = event.message.toMessageItem(meId, members)
             _detailState.update { state ->
                 if (state.messages.any { it.id == incoming.id }) state else state.copy(messages = state.messages + incoming)
             }
@@ -413,7 +619,7 @@ class ChatsViewModel(
             val messages = chatService.getMessages(conversationId)
             _detailState.value = ConversationDetailUiState(
                 conversation = conversation,
-                messages = messages.map { it.toMessageItem(meId) },
+                messages = messages.map { it.toMessageItem(meId, conversation.members) },
                 isLoading = false,
                 messageInput = ""
             )
@@ -468,20 +674,58 @@ class ChatsViewModel(
             unreadCount = unreadCount,
             lastMessageTime = lastTime,
             members = formattedMembers,
+            pinnedAt = pinnedAt,
             raw = this
         )
     }
 
-    private fun MessageDto.toMessageItem(meId: String?): MessageItem = MessageItem(
+    private fun MessageDto.toMessageItem(meId: String?, members: List<MemberInfo> = emptyList()): MessageItem {
+        val mine = senderId == meId
+        val memberIds = members.map { it.id }.toSet()
+        val others = if (memberIds.isEmpty()) emptySet() else memberIds - senderId
+        val computedStatus = if (mine) {
+            when {
+                others.isEmpty() -> MessageStatus.READ
+                others.all { readBy.contains(it) } -> MessageStatus.READ
+                else -> status
+            }
+        } else status
+
+        return MessageItem(
+            id = id,
+            text = when {
+                deletedAt != null -> getString(R.string.message_deleted)
+                body.isNotBlank() -> body
+                attachments.isNotEmpty() -> getString(R.string.message_with_attachment)
+                else -> getString(R.string.message_empty_placeholder)
+            },
+            timestamp = formatTimestamp(createdAt),
+            isMine = mine,
+            attachments = attachments.map {
+                MessageAttachment(
+                    id = it.id,
+                    fileName = it.fileName,
+                    contentType = it.contentType
+                )
+            },
+            isDeleted = deletedAt != null,
+            isEdited = editedAt != null && deletedAt == null,
+            status = computedStatus,
+            readBy = readBy
+        )
+    }
+
+    private fun MessageDto.toSearchResult(conversationTitle: String): MessageSearchResult = MessageSearchResult(
         id = id,
-        text = when {
+        conversationId = conversationId,
+        conversationTitle = conversationTitle,
+        preview = when {
             deletedAt != null -> getString(R.string.message_deleted)
             body.isNotBlank() -> body
             attachments.isNotEmpty() -> getString(R.string.message_with_attachment)
             else -> getString(R.string.message_empty_placeholder)
         },
-        timestamp = formatTimestamp(createdAt),
-        isMine = senderId == meId
+        timestamp = formatTimestamp(createdAt)
     )
 
     private fun UserProfileDto.toSuggestion(): ContactSuggestion = ContactSuggestion(
@@ -514,6 +758,13 @@ class ChatsViewModel(
         .map { it.trim() }
         .filter { it.isNotEmpty() }
         .distinct()
+
+    private fun PendingAttachment.toPayload(): com.nano.min.network.MessageAttachmentPayload =
+        com.nano.min.network.MessageAttachmentPayload(
+            fileName = fileName,
+            contentType = contentType,
+            dataBase64 = dataBase64
+        )
 
     private suspend fun resolveMemberIds(rawMembers: List<String>): List<String>? {
         val suggestionsSnapshot = conversationState.value.contactSuggestions

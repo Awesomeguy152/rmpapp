@@ -42,10 +42,13 @@ class ChatService(private val apiClient: ApiClient) {
         parameter("offset", offset)
     }.body()
 
-    suspend fun sendMessage(conversationId: String, body: String): MessageDto =
-        httpClient.post("$baseUrl/api/chat/conversations/$conversationId/messages") {
-            setBody(SendMessageRequest(body = body))
-        }.body()
+    suspend fun sendMessage(
+        conversationId: String,
+        body: String,
+        attachments: List<MessageAttachmentPayload> = emptyList()
+    ): MessageDto = httpClient.post("$baseUrl/api/chat/conversations/$conversationId/messages") {
+        setBody(SendMessageRequest(body = body, attachments = attachments))
+    }.body()
 
     suspend fun createDirectConversation(memberId: String, topic: String?): ConversationDto =
         httpClient.post("$baseUrl/api/chat/conversations/direct") {
@@ -68,6 +71,12 @@ class ChatService(private val apiClient: ApiClient) {
             setBody(UpdateTopicRequest(topic = topic))
         }.body()
 
+    suspend fun pinConversation(conversationId: String): ConversationSummaryDto =
+        httpClient.post("$baseUrl/api/chat/conversations/$conversationId/pin") {}.body()
+
+    suspend fun unpinConversation(conversationId: String): ConversationSummaryDto =
+        httpClient.delete("$baseUrl/api/chat/conversations/$conversationId/pin").body()
+
     suspend fun addConversationMembers(conversationId: String, memberIds: List<String>): List<ConversationMemberDto> =
         httpClient.post("$baseUrl/api/chat/conversations/$conversationId/members") {
             setBody(ModifyMembersRequest(memberIds = memberIds))
@@ -76,12 +85,27 @@ class ChatService(private val apiClient: ApiClient) {
     suspend fun removeConversationMember(conversationId: String, memberId: String): List<ConversationMemberDto> =
         httpClient.delete("$baseUrl/api/chat/conversations/$conversationId/members/$memberId").body()
 
+    suspend fun editMessage(messageId: String, body: String): MessageDto =
+        httpClient.patch("$baseUrl/api/chat/messages/$messageId") {
+            setBody(EditMessageRequest(body = body))
+        }.body()
+
+    suspend fun deleteMessage(messageId: String): MessageDto =
+        httpClient.delete("$baseUrl/api/chat/messages/$messageId").body()
+
     suspend fun searchUsers(query: String?, limit: Int = 20): List<UserProfileDto> =
         httpClient.get("$baseUrl/api/users") {
             parameter("limit", limit)
             if (!query.isNullOrBlank()) {
                 parameter("q", query)
             }
+        }.body()
+
+    suspend fun searchMessages(query: String, limit: Int = 50, offset: Int = 0): List<MessageDto> =
+        httpClient.get("$baseUrl/api/chat/messages") {
+            parameter("limit", limit)
+            parameter("offset", offset)
+            parameter("q", query)
         }.body()
 
     fun observeChatEvents(): Flow<ChatEventDto> = callbackFlow {

@@ -75,5 +75,12 @@
     <string name="conversation_members_manage_hint">Добавьте ID пользователей через запятую.</string>
     <string name="conversation_add_members">Добавить участников</string>
     <string name="conversation_member_remove">Удалить участника</string>
+    <string name="add_attachment">Добавить вложение</string>
+    <string name="remove_attachment">Удалить вложение</string>
+    <string name="search_messages_placeholder">Поиск по сообщениям и контактам</string>
+    <string name="search_messages_results">Найденные сообщения</string>
+    <string name="search_contacts_results">Найденные контакты</string>
+    <string name="error_search_messages">Не удалось выполнить поиск. Попробуйте ещё раз.</string>
+    <string name="action_toggle_theme">Переключить тему</string>
 
 </resources>

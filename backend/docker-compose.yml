@@ -38,12 +38,21 @@ services:
       - SEED_SAMPLE_DATA=true
       - ADMIN_REGISTRATION_SECRET=super-secret
       - PORT=8080
+      # === SMTP настройки ===
+      # Для локальной разработки (MailHog):
       - SMTP_HOST=mailhog
       - SMTP_PORT=1025
-      - SMTP_USERNAME=
-      - SMTP_PASSWORD=
+      - SMTP_USER=
+      - SMTP_PASS=
       - SMTP_FROM=no-reply@yourapp.local
-      - SMTP_SECURE=false
+      - SMTP_STARTTLS=false
+      # Для продакшена (Gmail) - раскомментируй и заполни:
+      # - SMTP_HOST=smtp.gmail.com
+      # - SMTP_PORT=587
+      # - SMTP_USER=your-email@gmail.com
+      # - SMTP_PASS=xxxx-xxxx-xxxx-xxxx
+      # - SMTP_FROM=your-email@gmail.com
+      # - SMTP_STARTTLS=true
     ports:
       - "8080:8080"
 
