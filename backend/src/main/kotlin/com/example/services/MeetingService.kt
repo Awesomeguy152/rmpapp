@@ -144,7 +144,7 @@ class MeetingService {
 
     private fun ResultRow.toMeetingDto() = MeetingDto(
         id = this[Meetings.id].value.toString(),
-        conversationId = this[Meetings.conversationId].toString(),
+        conversationId = this[Meetings.conversationId]?.toString(),
         creatorId = this[Meetings.creatorId].toString(),
         title = this[Meetings.title],
         description = this[Meetings.description],
@@ -152,14 +152,15 @@ class MeetingService {
         location = this[Meetings.location],
         status = this[Meetings.status],
         aiGenerated = this[Meetings.aiGenerated],
-        createdAt = this[Meetings.createdAt].toString()
+        createdAt = this[Meetings.createdAt].toString(),
+        updatedAt = this[Meetings.updatedAt].toString()
     )
 }
 
 @Serializable
 data class MeetingDto(
     val id: String,
-    val conversationId: String,
+    val conversationId: String?,
     val creatorId: String,
     val title: String,
     val description: String?,
@@ -167,7 +168,8 @@ data class MeetingDto(
     val location: String?,
     val status: String,
     val aiGenerated: Boolean,
-    val createdAt: String
+    val createdAt: String,
+    val updatedAt: String
 )
 
 @Serializable

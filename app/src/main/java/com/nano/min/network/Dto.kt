@@ -250,7 +250,7 @@ data class ModifyMembersRequest(
 @Serializable
 data class MeetingDto(
     val id: String,
-    val conversationId: String,
+    val conversationId: String? = null,
     val creatorId: String,
     val title: String,
     val description: String? = null,
@@ -258,7 +258,8 @@ data class MeetingDto(
     val location: String? = null,
     val status: String,
     val aiGenerated: Boolean = false,
-    val createdAt: String
+    val createdAt: String,
+    val updatedAt: String
 )
 
 @Serializable
