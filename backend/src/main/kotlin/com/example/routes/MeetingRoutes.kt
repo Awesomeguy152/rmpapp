@@ -236,10 +236,10 @@ data class AiMeetingExtractionResponse(
 data class CreateFromAiRq(
     val conversationId: String,
     val title: String,
-    val description: String?,
-    val dateTime: String?,
-    val location: String?,
-    val sourceMessageId: String?
+    val description: String? = null,
+    val dateTime: String? = null,
+    val location: String? = null,
+    val sourceMessageId: String? = null
 )
 
 @kotlinx.serialization.Serializable
