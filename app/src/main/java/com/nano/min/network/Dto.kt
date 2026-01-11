@@ -286,7 +286,9 @@ data class ExtractedMeetingDto(
 
 @Serializable
 data class ExtractMeetingsResponse(
-    val meetings: List<ExtractedMeetingDto>
+    val conversationId: String,
+    val meetings: List<ExtractedMeetingDto>,
+    val extractedAt: String
 )
 
 @Serializable

@@ -1,0 +1,20 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.nano.min.app-mergeDebugResources-44:/values-v28/values-v28.xml",
+            "map": [
+                {
+                    "source": "/Users/awesome_guy/.gradle/caches/8.13/transforms/bfc54e18407beb3c978018d7d66620bd/transformed/appcompat-1.7.1/res/values-v28/values-v28.xml",
+                    "from": {
+                        "startLines": "2,3,4,8",
+                        "startColumns": "4,4,4,4",
+                        "startOffsets": "55,130,217,397",
+                        "endLines": "2,3,7,11",
+                        "endColumns": "74,86,12,12",
+                        "endOffsets": "125,212,392,584"
+                    }
+                }
+            ]
+        }
+    ]
+}
