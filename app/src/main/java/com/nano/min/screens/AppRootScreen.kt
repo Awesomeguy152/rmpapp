@@ -2,7 +2,6 @@ package com.nano.min.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -28,7 +27,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -38,7 +36,6 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
@@ -97,7 +94,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.compose.ui.Alignment
@@ -105,7 +101,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -122,8 +117,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.nano.min.R
-import com.nano.min.ui.components.FullScreenBitmapViewer
-import com.nano.min.ui.components.FullScreenImageViewer
 import com.nano.min.viewmodel.ChatsEvent
 import com.nano.min.viewmodel.ChatsViewModel
 import com.nano.min.viewmodel.ConversationDetailUiState
@@ -134,7 +127,6 @@ import com.nano.min.viewmodel.MessageItem
 import com.nano.min.viewmodel.ExtractedMeetingInfo
 import com.nano.min.viewmodel.ContactSuggestion
 import com.nano.min.viewmodel.MemberInfo
-import com.nano.min.viewmodel.PendingAttachment
 import com.nano.min.network.ConversationType
 import com.nano.min.network.MessageStatus
 import com.nano.min.ui.components.SwipeableListItem
@@ -1228,7 +1220,6 @@ private fun ConversationDetailPanel(
 	}
 
 	var editingMessageId by remember { mutableStateOf<String?>(null) }
-	var fullScreenImageBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
 	val haptic = LocalHapticFeedback.current
 	val colorScheme = MaterialTheme.colorScheme
 	val context = LocalContext.current
@@ -1780,8 +1771,7 @@ private fun ConversationDetailPanel(
 							val isPinned = state.pinnedMessages.any { it.messageId == message.id }
 							if (isPinned) onUnpinMessage(message.id) else onPinMessage(message.id)
 						},
-						isPinned = state.pinnedMessages.any { it.messageId == message.id },
-						onImageClick = { bitmap -> fullScreenImageBitmap = bitmap }
+						isPinned = state.pinnedMessages.any { it.messageId == message.id }
 					)
 				}
 			}
@@ -1798,71 +1788,9 @@ private fun ConversationDetailPanel(
 			}
 		}
 
-		val sendEnabled = (state.messageInput.isNotBlank() || state.pendingAttachments.isNotEmpty()) && !state.isSending
+		val sendEnabled = state.messageInput.isNotBlank() && !state.isSending
 		
-		// Image picker launcher
 		val context = LocalContext.current
-		val imagePickerLauncher = rememberLauncherForActivityResult(
-			contract = ActivityResultContracts.GetMultipleContents()
-		) { uris ->
-			uris.forEach { uri ->
-				val contentResolver = context.contentResolver
-				val mimeType = contentResolver.getType(uri) ?: "application/octet-stream"
-				val fileName = uri.lastPathSegment ?: "file_${System.currentTimeMillis()}"
-				val size = try {
-					contentResolver.openInputStream(uri)?.use { it.available().toLong() } ?: 0L
-				} catch (e: Exception) { 0L }
-				onAddAttachment(uri, fileName, mimeType, size)
-			}
-		}
-		
-		// Pending attachments preview
-		if (state.pendingAttachments.isNotEmpty()) {
-			LazyRow(
-				horizontalArrangement = Arrangement.spacedBy(8.dp),
-				modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
-			) {
-				items(state.pendingAttachments, key = { it.uri.toString() }) { attachment ->
-					Surface(
-						shape = RoundedCornerShape(8.dp),
-						color = colorScheme.surfaceVariant,
-						modifier = Modifier.size(64.dp)
-					) {
-						Box(contentAlignment = Alignment.Center) {
-							if (attachment.contentType.startsWith("image/")) {
-								AsyncImage(
-									model = attachment.uri,
-									contentDescription = attachment.fileName,
-									modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(8.dp)),
-									contentScale = ContentScale.Crop
-								)
-							} else {
-								Icon(
-									imageVector = Icons.Default.AttachFile,
-									contentDescription = attachment.fileName,
-									tint = colorScheme.onSurfaceVariant
-								)
-							}
-							// Remove button
-							IconButton(
-								onClick = { onRemoveAttachment(attachment.uri) },
-								modifier = Modifier
-									.align(Alignment.TopEnd)
-									.size(20.dp)
-									.background(colorScheme.error, CircleShape)
-							) {
-								Icon(
-									imageVector = Icons.Default.Clear,
-									contentDescription = stringResource(R.string.remove_attachment),
-									tint = colorScheme.onError,
-									modifier = Modifier.size(12.dp)
-								)
-							}
-						}
-					}
-				}
-			}
-		}
 
 		// Voice recording indicator
 		if (state.isRecordingVoice) {
@@ -1991,18 +1919,6 @@ private fun ConversationDetailPanel(
 		}
 
 		Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-			// Attach button
-			IconButton(
-				onClick = { imagePickerLauncher.launch("image/*") },
-				enabled = !state.isSending
-			) {
-				Icon(
-					imageVector = Icons.Default.AttachFile,
-					contentDescription = stringResource(R.string.attach_image),
-					tint = if (state.isSending) colorScheme.onSurfaceVariant.copy(alpha = 0.5f) else colorScheme.primary
-				)
-			}
-			
 			OutlinedTextField(
 				value = state.messageInput,
 				onValueChange = onMessageChange,
@@ -2091,14 +2007,6 @@ private fun ConversationDetailPanel(
 				}
 			}
 		}
-	}
-	
-	// Fullscreen image viewer
-	fullScreenImageBitmap?.let { bitmap ->
-		FullScreenBitmapViewer(
-			bitmap = bitmap,
-			onDismiss = { fullScreenImageBitmap = null }
-		)
 	}
 }
 }
@@ -2315,8 +2223,7 @@ private fun MessageBubble(
 	onDelete: () -> Unit,
 	onReply: () -> Unit = {},
 	onPin: () -> Unit = {},
-	isPinned: Boolean = false,
-	onImageClick: (android.graphics.Bitmap) -> Unit = {}
+	isPinned: Boolean = false
 ) {
 	var showReactions by remember(message.id) { mutableStateOf(false) }
 	var showMenu by remember { mutableStateOf(false) }
@@ -2393,68 +2300,17 @@ private fun MessageBubble(
 						Spacer(modifier = Modifier.height(2.dp))
 					}
 					
-					// Display attachments
-					if (message.attachments.isNotEmpty()) {
-						message.attachments.forEach { attachment ->
-							when {
-								attachment.contentType.startsWith("audio/") -> {
-									// Voice message player
-									VoiceMessagePlayer(
-										attachment = attachment,
-										isMine = message.isMine,
-										colorScheme = colorScheme
-									)
-									Spacer(modifier = Modifier.height(4.dp))
-								}
-								attachment.contentType.startsWith("image/") -> {
-									// Image attachment
-									val imageBytes = android.util.Base64.decode(attachment.dataBase64, android.util.Base64.DEFAULT)
-									val bitmap = android.graphics.BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
-									if (bitmap != null) {
-										Image(
-											bitmap = bitmap.asImageBitmap(),
-											contentDescription = attachment.fileName,
-											contentScale = ContentScale.FillWidth,
-											modifier = Modifier
-												.fillMaxWidth()
-												.clip(RoundedCornerShape(8.dp))
-												.clickable { onImageClick(bitmap) }
-										)
-										Spacer(modifier = Modifier.height(4.dp))
-									}
-								}
-								else -> {
-									// Generic file attachment
-									Row(
-										modifier = Modifier
-											.fillMaxWidth()
-											.background(
-												colorScheme.surfaceVariant.copy(alpha = 0.5f),
-												RoundedCornerShape(8.dp)
-											)
-											.padding(8.dp),
-										verticalAlignment = Alignment.CenterVertically
-									) {
-										Icon(
-											imageVector = Icons.Default.AttachFile,
-											contentDescription = null,
-											tint = colorScheme.primary
-										)
-										Spacer(modifier = Modifier.width(8.dp))
-										Text(
-											text = attachment.fileName,
-											style = MaterialTheme.typography.bodySmall,
-											maxLines = 1,
-											overflow = TextOverflow.Ellipsis
-										)
-									}
-									Spacer(modifier = Modifier.height(4.dp))
-								}
-							}
-						}
+					// Display voice messages only (attachments disabled)
+					message.attachments.filter { it.contentType.startsWith("audio/") }.forEach { attachment ->
+						VoiceMessagePlayer(
+							attachment = attachment,
+							isMine = message.isMine,
+							colorScheme = colorScheme
+						)
+						Spacer(modifier = Modifier.height(4.dp))
 					}
 					
-					// Only show text if it's not just a voice message placeholder
+					// Show text message
 					if (message.text.isNotBlank() && message.attachments.none { it.contentType.startsWith("audio/") }) {
 						Text(
 							text = message.text,

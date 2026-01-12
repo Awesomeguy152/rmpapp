@@ -50,8 +50,8 @@ class AuthService(val client: ApiClient) {
         return@withContext null
     }
 
-    suspend fun updateProfile(username: String?, displayName: String?, bio: String?, avatarUrl: String?): MeResponse? = withContext(Dispatchers.IO) {
-        val req = UpdateProfileRq(username, displayName, bio, avatarUrl)
+    suspend fun updateProfile(username: String?, displayName: String?, bio: String?): MeResponse? = withContext(Dispatchers.IO) {
+        val req = UpdateProfileRq(username, displayName, bio)
         val response: HttpResponse = client.httpClient.patch("${client.baseUrl}/api/me") {
             setBody(req)
         }

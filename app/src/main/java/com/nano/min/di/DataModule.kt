@@ -7,7 +7,6 @@ import com.nano.min.network.ApiClient
 import com.nano.min.network.AuthService
 import com.nano.min.network.ChatService
 import com.nano.min.network.MeetingService
-import com.nano.min.network.UploadService
 import com.nano.min.network.DeviceTokenStorage
 import com.nano.min.network.TokenStorage
 import org.koin.android.ext.koin.androidContext
@@ -28,9 +27,6 @@ val dataModule = module {
 
     // MeetingService
     single { MeetingService(get()) }
-
-    // UploadService
-    single { UploadService(get()) }
 
     // Room Database
     single { AppDatabase.getInstance(androidContext()) }

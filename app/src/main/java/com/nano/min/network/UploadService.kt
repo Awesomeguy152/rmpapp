@@ -2,6 +2,7 @@ package com.nano.min.network
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import com.nano.min.util.ImageUtils
 import io.ktor.client.call.body
 import io.ktor.client.request.forms.formData
@@ -13,7 +14,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class UploadResponse(
     val url: String,
-    val filename: String
+    val fileName: String
 )
 
 class UploadService(private val apiClient: ApiClient) {
@@ -28,9 +29,11 @@ class UploadService(private val apiClient: ApiClient) {
      */
     suspend fun uploadAvatar(context: Context, imageUri: Uri): Result<String> {
         return try {
+            Log.d("UploadService", "uploadAvatar: Starting for uri: $imageUri")
             val compressedBytes = ImageUtils.compressForAvatar(context, imageUri)
                 ?: return Result.failure(Exception("Не удалось сжать изображение"))
 
+            Log.d("UploadService", "uploadAvatar: Sending to server, size: ${compressedBytes.size} bytes")
             val response: UploadResponse = httpClient.submitFormWithBinaryData(
                 url = "$baseUrl/api/upload/avatar",
                 formData = formData {
@@ -41,8 +44,10 @@ class UploadService(private val apiClient: ApiClient) {
                 }
             ).body()
 
+            Log.d("UploadService", "uploadAvatar: Success! URL: ${response.url}")
             Result.success(response.url)
         } catch (e: Exception) {
+            Log.e("UploadService", "uploadAvatar: Error: ${e.message}", e)
             Result.failure(e)
         }
     }

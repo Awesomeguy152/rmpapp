@@ -15,7 +15,6 @@ data class ProfileUiState(
     val email: String = "",
     val displayName: String = "",
     val bio: String = "",
-    val avatarUrl: String = "",
     val isLoading: Boolean = false,
     val error: String? = null,
     val isEditing: Boolean = false
@@ -27,7 +26,7 @@ sealed interface ProfileEvent {
 
 class ProfileViewModel(
     application: Application,
-    private val authService: AuthService
+    private val authService: AuthService,
 ) : ViewModelRes(application) {
 
     private val _uiState = MutableStateFlow(ProfileUiState())
@@ -51,7 +50,6 @@ class ProfileViewModel(
                         email = me.email ?: "",
                         displayName = me.displayName ?: "",
                         bio = me.bio ?: "",
-                        avatarUrl = me.avatarUrl ?: "",
                         isLoading = false
                     )
                 } else {
@@ -75,10 +73,6 @@ class ProfileViewModel(
         _uiState.value = _uiState.value.copy(bio = value)
     }
     
-    fun onAvatarUrlChange(value: String) {
-        _uiState.value = _uiState.value.copy(avatarUrl = value)
-    }
-
     fun toggleEditMode() {
         _uiState.value = _uiState.value.copy(isEditing = !_uiState.value.isEditing)
     }
@@ -91,8 +85,7 @@ class ProfileViewModel(
                 val updated = authService.updateProfile(
                     username = state.username,
                     displayName = state.displayName,
-                    bio = state.bio,
-                    avatarUrl = state.avatarUrl
+                    bio = state.bio
                 )
                 if (updated != null) {
                     _uiState.value = _uiState.value.copy(
@@ -100,8 +93,7 @@ class ProfileViewModel(
                         isEditing = false,
                         username = updated.username ?: "",
                         displayName = updated.displayName ?: "",
-                        bio = updated.bio ?: "",
-                        avatarUrl = updated.avatarUrl ?: ""
+                        bio = updated.bio ?: ""
                     )
                     _events.send(ProfileEvent.SaveSuccess)
                 } else {

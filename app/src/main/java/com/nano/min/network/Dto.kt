@@ -38,8 +38,7 @@ data class MeResponse(
 data class UpdateProfileRq(
     val username: String? = null,
     val displayName: String? = null,
-    val bio: String? = null,
-    val avatarUrl: String? = null
+    val bio: String? = null
 )
 
 @Serializable

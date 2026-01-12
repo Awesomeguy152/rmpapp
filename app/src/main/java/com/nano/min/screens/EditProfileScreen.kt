@@ -1,10 +1,6 @@
 package com.nano.min.screens
 
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,8 +18,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -39,26 +33,20 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil.compose.AsyncImage
 import com.nano.min.R
 import com.nano.min.viewmodel.ProfileEvent
 import com.nano.min.viewmodel.ProfileViewModel
@@ -73,13 +61,6 @@ fun EditProfileScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val colorScheme = MaterialTheme.colorScheme
-    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
-
-    val imagePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        selectedImageUri = uri
-    }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -134,74 +115,30 @@ fun EditProfileScreen(
                 if (uiState.isLoading) {
                     CircularProgressIndicator(modifier = Modifier.padding(32.dp))
                 } else {
-                    // Avatar section with shadow
-                    Box(
-                        modifier = Modifier.size(140.dp),
-                        contentAlignment = Alignment.Center
+                    // Avatar placeholder (фото отключены)
+                    val initials = (uiState.displayName.ifBlank { uiState.email })
+                        .firstOrNull()?.uppercaseChar()?.toString() ?: "?"
+
+                    Surface(
+                        shape = CircleShape,
+                        color = colorScheme.primary.copy(alpha = 0.12f),
+                        shadowElevation = 12.dp,
+                        modifier = Modifier
+                            .size(140.dp)
+                            .clip(CircleShape),
+                        tonalElevation = 0.dp
                     ) {
                         Box(
-                            modifier = Modifier
-                                .size(120.dp)
-                                .shadow(16.dp, CircleShape)
-                                .clip(CircleShape)
-                                .background(colorScheme.surface),
+                            modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
                         ) {
-                            when {
-                                selectedImageUri != null -> {
-                                    AsyncImage(
-                                        model = selectedImageUri,
-                                        contentDescription = "Avatar",
-                                        modifier = Modifier.fillMaxSize().clip(CircleShape),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                }
-                                uiState.avatarUrl.isNotBlank() -> {
-                                    AsyncImage(
-                                        model = uiState.avatarUrl,
-                                        contentDescription = "Avatar",
-                                        modifier = Modifier.fillMaxSize().clip(CircleShape),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                }
-                                else -> {
-                                    Icon(
-                                        Icons.Default.Person,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(56.dp),
-                                        tint = colorScheme.primary
-                                    )
-                                }
-                            }
+                            Text(
+                                text = initials,
+                                style = MaterialTheme.typography.headlineLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = colorScheme.primary
+                            )
                         }
-
-                        // Camera button
-                        Surface(
-                            shape = CircleShape,
-                            color = colorScheme.primary,
-                            shadowElevation = 8.dp,
-                            modifier = Modifier
-                                .size(40.dp)
-                                .align(Alignment.BottomEnd)
-                                .clickable { imagePickerLauncher.launch("image/*") }
-                        ) {
-                            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                                Icon(
-                                    Icons.Default.CameraAlt,
-                                    contentDescription = stringResource(R.string.change_photo),
-                                    modifier = Modifier.size(20.dp),
-                                    tint = colorScheme.onPrimary
-                                )
-                            }
-                        }
-                    }
-
-                    TextButton(onClick = { imagePickerLauncher.launch("image/*") }) {
-                        Text(
-                            text = stringResource(R.string.change_photo),
-                            color = colorScheme.primary,
-                            fontWeight = FontWeight.Medium
-                        )
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))

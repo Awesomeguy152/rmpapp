@@ -24,7 +24,6 @@ import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -99,21 +98,15 @@ fun ProfileScreen(
                     .background(colorScheme.surface),
                 contentAlignment = Alignment.Center
             ) {
-                if (uiState.avatarUrl.isNotBlank()) {
-                    AsyncImage(
-                        model = uiState.avatarUrl,
-                        contentDescription = "Avatar",
-                        modifier = Modifier.fillMaxSize().clip(CircleShape),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Icon(
-                        Icons.Default.Person,
-                        contentDescription = null,
-                        modifier = Modifier.size(60.dp),
-                        tint = colorScheme.primary
-                    )
-                }
+                val initials = (uiState.displayName.ifBlank { uiState.email })
+                    .firstOrNull()?.uppercaseChar()?.toString() ?: "?"
+
+                Text(
+                    text = initials,
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = colorScheme.primary
+                )
             }
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -157,62 +150,63 @@ fun ProfileScreen(
                 }
             }
 
-            // Info cards
-            if (!uiState.isLoading) {
-                ProfileInfoCard(
-                    icon = Icons.Default.Email,
-                    label = stringResource(R.string.email_label),
-                    value = uiState.email.ifBlank { "—" }
-                )
+            // Profile info cards
+            ProfileInfoCard(
+                icon = Icons.Default.Email,
+                label = stringResource(R.string.email_label),
+                value = uiState.email.ifBlank { "-" }
+            )
 
-                Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
+            if (uiState.bio.isNotBlank()) {
                 ProfileInfoCard(
                     icon = Icons.Default.Info,
                     label = stringResource(R.string.bio_label),
-                    value = uiState.bio.ifBlank { stringResource(R.string.bio_placeholder) }
+                    value = uiState.bio
                 )
+                Spacer(modifier = Modifier.height(24.dp))
+            } else {
+                Spacer(modifier = Modifier.height(12.dp))
+            }
 
-                Spacer(modifier = Modifier.height(32.dp))
+            // Edit Profile button
+            Button(
+                onClick = onEditProfile,
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary)
+            ) {
+                Icon(Icons.Default.Edit, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = stringResource(R.string.edit_profile_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
 
-                // Edit Profile button
-                Button(
-                    onClick = onEditProfile,
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary)
-                ) {
-                    Icon(Icons.Default.Edit, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = stringResource(R.string.edit_profile_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
+            Spacer(modifier = Modifier.height(16.dp))
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Logout button
-                OutlinedButton(
-                    onClick = {
-                        viewModel.logout()
-                        onLogout()
-                    },
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = colorScheme.error
-                    )
-                ) {
-                    Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = stringResource(R.string.action_logout),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
+            // Logout button
+            OutlinedButton(
+                onClick = {
+                    viewModel.logout()
+                    onLogout()
+                },
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = colorScheme.error
+                )
+            ) {
+                Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = stringResource(R.string.action_logout),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
 
             Spacer(modifier = Modifier.height(24.dp))
