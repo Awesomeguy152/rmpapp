@@ -98,10 +98,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -115,7 +113,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil.compose.AsyncImage
 import com.nano.min.R
 import com.nano.min.viewmodel.ChatsEvent
 import com.nano.min.viewmodel.ChatsViewModel
@@ -718,33 +715,28 @@ private fun ConversationListItem(
 			Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
 				if (conversation.raw.type == ConversationType.DIRECT) {
 					val otherMember = conversation.members.firstOrNull { it.id != currentUserId }
-					val avatarUrl = otherMember?.avatarUrl ?: conversation.members.firstOrNull()?.avatarUrl
 					val isOnline = otherMember?.isOnline ?: false
+					val displayName = otherMember?.name ?: conversation.title
+					val initials = displayName.split(" ")
+						.take(2)
+						.mapNotNull { it.firstOrNull()?.uppercaseChar() }
+						.joinToString("")
+						.ifEmpty { displayName.firstOrNull()?.uppercaseChar()?.toString() ?: "#" }
 
 					Box {
-						if (avatarUrl != null) {
-							AsyncImage(
-								model = avatarUrl,
-								contentDescription = null,
-								modifier = Modifier
-									.size(44.dp)
-									.clip(CircleShape),
-								contentScale = ContentScale.Crop
-							)
-						} else {
-							Surface(
-								shape = CircleShape,
-								color = accentColor,
-								tonalElevation = if (isSelected) 2.dp else 0.dp,
-								modifier = Modifier.size(44.dp)
-							) {
-								Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-									Text(
-										text = (otherMember?.name ?: conversation.title).firstOrNull()?.uppercaseChar()?.toString() ?: "#",
-										style = MaterialTheme.typography.titleMedium,
-										color = if (isSelected) colorScheme.onPrimary else colorScheme.primary
-									)
-								}
+						// WhatsApp-style avatar placeholder with initials
+						Surface(
+							shape = CircleShape,
+							color = accentColor,
+							tonalElevation = if (isSelected) 2.dp else 0.dp,
+							modifier = Modifier.size(44.dp)
+						) {
+							Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+								Text(
+									text = initials,
+									style = MaterialTheme.typography.titleMedium,
+									color = if (isSelected) colorScheme.onPrimary else colorScheme.primary
+								)
 							}
 						}
 						// Online indicator
