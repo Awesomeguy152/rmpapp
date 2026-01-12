@@ -69,6 +69,22 @@ class UserService {
         findProfile(userId)
     }
 
+    /**
+     * Прямой сброс пароля по email (без токена из письма)
+     */
+    fun directResetPassword(email: String, newPassword: String): Boolean = transaction {
+        val user = UserTable
+            .select { UserTable.email eq email }
+            .singleOrNull()
+            ?: return@transaction false
+
+        val newHash = BCrypt.withDefaults().hashToString(12, newPassword.toCharArray())
+        UserTable.update({ UserTable.id eq user[UserTable.id] }) {
+            it[passwordHash] = newHash
+        }
+        true
+    }
+
     fun searchContacts(requesterId: UUID, query: String?, limit: Int): List<UserProfileDTO> = transaction {
         val base = UserTable.select { UserTable.id neq EntityID(requesterId, UserTable) }
         val searchQuery = query?.trim().takeUnless { it.isNullOrEmpty() }

@@ -119,13 +119,6 @@ fun ProfileScreen(
                 color = colorScheme.onBackground
             )
 
-            // Username
-            Text(
-                text = "@${uiState.username.ifBlank { "username" }}",
-                style = MaterialTheme.typography.bodyLarge,
-                color = colorScheme.onBackground.copy(alpha = 0.6f)
-            )
-
             Spacer(modifier = Modifier.height(32.dp))
 
             // Loading indicator

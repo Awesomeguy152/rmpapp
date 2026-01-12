@@ -43,11 +43,18 @@ class AuthService(val client: ApiClient) {
     }
 
     suspend fun me(): MeResponse? = withContext(Dispatchers.IO) {
-        val response: HttpResponse = client.httpClient.get("${client.baseUrl}/api/me")
-        if (response.status == HttpStatusCode.OK) {
-            return@withContext response.body()
+        try {
+            val response: HttpResponse = client.httpClient.get("${client.baseUrl}/api/me")
+            android.util.Log.d("AuthService", "me() response status: ${response.status}")
+            if (response.status == HttpStatusCode.OK) {
+                return@withContext response.body()
+            }
+            android.util.Log.e("AuthService", "me() failed with status: ${response.status}")
+            return@withContext null
+        } catch (e: Exception) {
+            android.util.Log.e("AuthService", "me() exception: ${e.message}", e)
+            return@withContext null
         }
-        return@withContext null
     }
 
     suspend fun updateProfile(username: String?, displayName: String?, bio: String?): MeResponse? = withContext(Dispatchers.IO) {
@@ -120,6 +127,21 @@ class AuthService(val client: ApiClient) {
         }
     }
 
+    /**
+     * Прямой сброс пароля (без токена из письма)
+     */
+    suspend fun directResetPassword(email: String, newPassword: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val response: HttpResponse = client.httpClient.post("${client.baseUrl}/api/auth/direct-reset") {
+                setBody(DirectResetRequest(email, newPassword))
+            }
+            response.status == HttpStatusCode.OK
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
     fun logout() {
         client.tokenStorage.setToken(null)
     }
@@ -129,5 +151,11 @@ class AuthService(val client: ApiClient) {
 data class ResetPasswordRequest(
     val email: String,
     val token: String,
+    val newPassword: String
+)
+
+@Serializable
+data class DirectResetRequest(
+    val email: String,
     val newPassword: String
 )

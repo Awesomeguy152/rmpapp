@@ -107,5 +107,11 @@ class ProfileViewModel(
     
     fun logout() {
         authService.logout()
+        // Очищаем состояние профиля
+        _uiState.value = ProfileUiState()
+    }
+    
+    fun clearState() {
+        _uiState.value = ProfileUiState()
     }
 }

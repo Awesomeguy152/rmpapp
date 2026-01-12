@@ -73,11 +73,10 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import com.google.accompanist.swiperefresh.SwipeRefresh
-import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -176,6 +175,11 @@ fun AppRootScreen(
 	val context = LocalContext.current
 	var showCreateSheet by rememberSaveable { mutableStateOf(false) }
 	val bottomSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+	// Перезагружаем данные профиля при входе (важно после регистрации/логина нового пользователя)
+	LaunchedEffect(Unit) {
+		viewModel.reloadAfterLogin()
+	}
 
 	LaunchedEffect(viewModel) {
 		viewModel.events.collect { event ->
@@ -399,12 +403,6 @@ fun AppRootScreen(
 							onArchiveConversation = { viewModel.archiveConversation(it) },
 							onMuteConversation = { viewModel.muteConversation(it) },
 							onDeleteConversation = { viewModel.deleteConversation(it) },
-							onLogout = {
-								viewModel.logout()
-								onLogout()
-							},
-							onProfileClick = onProfileClick,
-							onMeetingsClick = onMeetingsClick,
 							modifier = Modifier.fillMaxSize()
 						)
 					}
@@ -420,12 +418,6 @@ fun AppRootScreen(
 							onArchiveConversation = { viewModel.archiveConversation(it) },
 							onMuteConversation = { viewModel.muteConversation(it) },
 							onDeleteConversation = { viewModel.deleteConversation(it) },
-							onLogout = {
-								viewModel.logout()
-								onLogout()
-							},
-							onProfileClick = onProfileClick,
-							onMeetingsClick = onMeetingsClick,
 							modifier = Modifier
 								.widthIn(max = 360.dp)
 								.fillMaxHeight()
@@ -487,9 +479,6 @@ private fun ConversationListPanel(
 	onArchiveConversation: (String) -> Unit,
 	onMuteConversation: (String) -> Unit,
 	onDeleteConversation: (String) -> Unit,
-	onLogout: () -> Unit = {},
-	onProfileClick: () -> Unit = {},
-	onMeetingsClick: () -> Unit = {},
 	modifier: Modifier = Modifier
 ) {
 	val colorScheme = MaterialTheme.colorScheme
@@ -511,44 +500,11 @@ private fun ConversationListPanel(
 					.padding(horizontal = 22.dp, vertical = 18.dp),
 				verticalArrangement = Arrangement.spacedBy(10.dp)
 			) {
-				// Заголовок с кнопками действий
-				Row(
-					modifier = Modifier.fillMaxWidth(),
-					horizontalArrangement = Arrangement.SpaceBetween,
-					verticalAlignment = Alignment.CenterVertically
-				) {
-					Text(
-						text = stringResource(R.string.conversation_recent),
-						style = MaterialTheme.typography.titleMedium,
-						color = colorScheme.onSurface
-					)
-					Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-						IconButton(onClick = onMeetingsClick) {
-							Icon(
-								imageVector = Icons.Default.CalendarMonth,
-								contentDescription = stringResource(R.string.screen_meetings),
-								tint = colorScheme.onSurfaceVariant
-							)
-						}
-						IconButton(onClick = onProfileClick) {
-							Icon(
-								imageVector = Icons.Default.AccountCircle,
-								contentDescription = stringResource(R.string.screen_profile),
-								tint = colorScheme.onSurfaceVariant
-							)
-						}
-						IconButton(onClick = {
-							Log.d("ConversationListPanel", "LOGOUT CLICKED!")
-							onLogout()
-						}) {
-							Icon(
-								imageVector = Icons.AutoMirrored.Filled.Logout,
-								contentDescription = stringResource(R.string.action_logout),
-								tint = colorScheme.error
-							)
-						}
-					}
-				}
+				Text(
+					text = stringResource(R.string.conversation_recent),
+					style = MaterialTheme.typography.titleMedium,
+					color = colorScheme.onSurface
+				)
 				Row(
 					verticalAlignment = Alignment.CenterVertically,
 					horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -674,12 +630,11 @@ private fun ConversationListPanel(
 				}
 
 				else -> {
-					val swipeRefreshState = rememberSwipeRefreshState(isRefreshing = state.isLoading)
 					// Состояние для bottom sheet с действиями
 					var showActionsForConversation by remember { mutableStateOf<ConversationItem?>(null) }
 					
-					SwipeRefresh(
-						state = swipeRefreshState,
+					PullToRefreshBox(
+						isRefreshing = state.isLoading,
 						onRefresh = onRefresh,
 						modifier = Modifier.fillMaxSize()
 					) {

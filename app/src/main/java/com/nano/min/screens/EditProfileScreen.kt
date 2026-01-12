@@ -76,7 +76,8 @@ fun EditProfileScreen(
                 title = {
                     Text(
                         text = stringResource(R.string.edit_profile_title),
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.titleMedium
                     )
                 },
                 navigationIcon = {

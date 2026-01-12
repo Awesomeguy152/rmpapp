@@ -52,8 +52,15 @@ data class ResetRq(
     val newPassword: String
 )
 
+@Serializable
+data class DirectResetRq(
+    val email: String,
+    val newPassword: String
+)
+
 fun Route.authRoutes() {
     val service = UserService()
+    val users = service
     val mail = MailService(application)
     val reset = PasswordResetService(service, mail)
 
@@ -128,6 +135,17 @@ fun Route.authRoutes() {
                 call.respond(HttpStatusCode.OK, ResetRs("password_updated"))
             } else {
                 call.respond(HttpStatusCode.BadRequest, ErrorRs("invalid_or_expired_token"))
+            }
+        }
+
+        // Прямой сброс пароля без email верификации
+        post("/direct-reset") {
+            val rq = call.receive<DirectResetRq>()
+            val ok = users.directResetPassword(rq.email.trim(), rq.newPassword)
+            if (ok) {
+                call.respond(HttpStatusCode.OK, ResetRs("password_updated"))
+            } else {
+                call.respond(HttpStatusCode.NotFound, ErrorRs("user_not_found"))
             }
         }
     }

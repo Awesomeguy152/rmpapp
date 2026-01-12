@@ -71,13 +71,23 @@ fun RegisterScreen(
     navigateApp: () -> Unit
 ) {
     val viewModel: RegisterViewModel = koinViewModel()
-    val uiState by viewModel.uiState.collectAsState()
     val colorScheme = MaterialTheme.colorScheme
     val focusManager = LocalFocusManager.current
     var passwordVisible by remember { mutableStateOf(false) }
+    
+    // Сбрасываем СИНХРОННО при первой композиции
+    val initialReset = remember {
+        viewModel.resetRegisterSuccess()
+        true
+    }
+    
+    val uiState by viewModel.uiState.collectAsState()
 
+    // Навигация после успешной регистрации
     LaunchedEffect(uiState.isRegisterSuccessful) {
-        if (uiState.isRegisterSuccessful) navigateApp()
+        if (uiState.isRegisterSuccessful) {
+            navigateApp()
+        }
     }
 
     Box(

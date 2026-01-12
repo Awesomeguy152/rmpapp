@@ -10,19 +10,12 @@ import kotlinx.coroutines.launch
 
 data class ForgotPasswordState(
     val email: String = "",
-    val token: String = "",
     val newPassword: String = "",
     val confirmPassword: String = "",
     val isLoading: Boolean = false,
     val error: String? = null,
-    val step: ForgotPasswordStep = ForgotPasswordStep.EMAIL,
     val isResetSuccessful: Boolean = false
 )
-
-enum class ForgotPasswordStep {
-    EMAIL,      // Ввод email для запроса токена
-    TOKEN       // Ввод токена и нового пароля
-}
 
 class ForgotPasswordViewModel(
     private val authService: AuthService
@@ -35,10 +28,6 @@ class ForgotPasswordViewModel(
         _uiState.update { it.copy(email = email, error = null) }
     }
 
-    fun onTokenChange(token: String) {
-        _uiState.update { it.copy(token = token, error = null) }
-    }
-
     fun onNewPasswordChange(password: String) {
         _uiState.update { it.copy(newPassword = password, error = null) }
     }
@@ -47,35 +36,16 @@ class ForgotPasswordViewModel(
         _uiState.update { it.copy(confirmPassword = password, error = null) }
     }
 
-    fun requestReset() {
-        val email = _uiState.value.email.trim()
+    fun resetPassword() {
+        val state = _uiState.value
+        
+        val email = state.email.trim()
         if (email.isBlank()) {
             _uiState.update { it.copy(error = "Введите email") }
             return
         }
         if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
             _uiState.update { it.copy(error = "Некорректный email") }
-            return
-        }
-
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = null) }
-            val success = authService.forgotPassword(email)
-            _uiState.update { 
-                if (success) {
-                    it.copy(isLoading = false, step = ForgotPasswordStep.TOKEN)
-                } else {
-                    it.copy(isLoading = false, step = ForgotPasswordStep.TOKEN) // Всегда переходим, чтобы не раскрывать наличие email
-                }
-            }
-        }
-    }
-
-    fun resetPassword() {
-        val state = _uiState.value
-        
-        if (state.token.isBlank()) {
-            _uiState.update { it.copy(error = "Введите код из письма") }
             return
         }
         if (state.newPassword.length < 6) {
@@ -89,26 +59,22 @@ class ForgotPasswordViewModel(
 
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
-            val success = authService.resetPassword(
-                email = state.email.trim(),
-                token = state.token.trim(),
+            val success = authService.directResetPassword(
+                email = email,
                 newPassword = state.newPassword
             )
             _uiState.update { 
                 if (success) {
                     it.copy(isLoading = false, isResetSuccessful = true)
                 } else {
-                    it.copy(isLoading = false, error = "Неверный или истёкший код")
+                    it.copy(isLoading = false, error = "Пользователь не найден")
                 }
             }
         }
-    }
-
-    fun goBackToEmail() {
-        _uiState.update { it.copy(step = ForgotPasswordStep.EMAIL, token = "", newPassword = "", confirmPassword = "", error = null) }
     }
 
     fun reset() {
         _uiState.value = ForgotPasswordState()
     }
 }
+

@@ -808,6 +808,15 @@ class ChatsViewModel(
         _conversationState.value = ConversationsUiState()
         _detailState.value = ConversationDetailUiState()
     }
+    
+    // Перезагрузка данных после входа нового пользователя
+    fun reloadAfterLogin() {
+        viewModelScope.launch {
+            loadProfile()
+            refreshConversationsInternal(selectConversation = null)
+        }
+        startRealtimeUpdates()
+    }
 
     private fun startRealtimeUpdates() {
         updatesJob?.cancel()
@@ -940,6 +949,7 @@ class ChatsViewModel(
             _isOffline.value = false
             val summaries = result.getOrThrow()
             val items = summaries.map { it.toConversationItem(meId) }
+                .sortedWith(conversationComparator())
             _conversationState.value = _conversationState.value.copy(
                 isLoading = false,
                 conversations = items,
@@ -962,6 +972,7 @@ class ChatsViewModel(
                 val cachedConversations = chatRepository.getConversations().first()
                 if (cachedConversations.isNotEmpty()) {
                     val items = cachedConversations.map { it.toConversationItem(meId) }
+                        .sortedWith(conversationComparator())
                     _conversationState.value = _conversationState.value.copy(
                         isLoading = false,
                         conversations = items,
@@ -1388,5 +1399,32 @@ class ChatsViewModel(
             ) 
         }
     }
+    
+    /**
+     * Компаратор для сортировки чатов:
+     * 1. Закреплённые чаты всегда вверху
+     * 2. Затем по времени последнего сообщения (новые выше)
+     */
+    private fun conversationComparator(): Comparator<ConversationItem> = compareBy<ConversationItem> { !it.isPinned }
+        .thenByDescending { conversation ->
+            // Парсим время последнего сообщения
+            conversation.raw.lastMessage?.createdAt?.let { parseTimestamp(it) } ?: 0L
+        }
+    
+    private fun parseTimestamp(timestamp: String): Long {
+        return try {
+            java.time.Instant.parse(timestamp.replace(" ", "T") + "Z").toEpochMilli()
+        } catch (e: Exception) {
+            try {
+                java.time.LocalDateTime.parse(timestamp.substringBefore("."))
+                    .atZone(java.time.ZoneId.systemDefault())
+                    .toInstant()
+                    .toEpochMilli()
+            } catch (e2: Exception) {
+                0L
+            }
+        }
+    }
 }
+
 

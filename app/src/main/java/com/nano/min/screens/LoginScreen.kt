@@ -73,13 +73,23 @@ fun LoginScreen(
     navigateApp: () -> Unit
 ) {
     val viewModel: LoginViewModel = koinViewModel()
-    val uiState by viewModel.uiState.collectAsState()
     val colorScheme = MaterialTheme.colorScheme
     val focusManager = LocalFocusManager.current
     var passwordVisible by remember { mutableStateOf(false) }
+    
+    // Сбрасываем СИНХРОННО при первой композиции
+    val initialReset = remember {
+        viewModel.resetLoginSuccess()
+        true
+    }
+    
+    val uiState by viewModel.uiState.collectAsState()
 
+    // Навигация после успешного логина
     LaunchedEffect(uiState.isLoginSuccessful) {
-        if (uiState.isLoginSuccessful) navigateApp()
+        if (uiState.isLoginSuccessful) {
+            navigateApp()
+        }
     }
 
     Box(
