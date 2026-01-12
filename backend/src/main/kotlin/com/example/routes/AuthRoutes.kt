@@ -29,6 +29,18 @@ data class LoginRq(
 )
 
 @Serializable
+data class LoginRs(val token: String)
+
+@Serializable
+data class ErrorRs(val error: String)
+
+@Serializable
+data class ForgotRs(val ok: Boolean, val mailOk: Boolean, val mailError: String? = null)
+
+@Serializable
+data class ResetRs(val status: String)
+
+@Serializable
 data class ForgotRq(
     val email: String
 )
@@ -55,12 +67,12 @@ fun Route.authRoutes() {
                 when {
                     requiredSecret == null -> {
                         application.log.warn("Admin registration blocked: ADMIN_REGISTRATION_SECRET not configured")
-                        call.respond(HttpStatusCode.Forbidden, mapOf("error" to "admin_registration_disabled"))
+                        call.respond(HttpStatusCode.Forbidden, ErrorRs("admin_registration_disabled"))
                         return@post
                     }
 
                     rq.adminSecret.isNullOrBlank() || rq.adminSecret != requiredSecret -> {
-                        call.respond(HttpStatusCode.Forbidden, mapOf("error" to "admin_secret_invalid"))
+                        call.respond(HttpStatusCode.Forbidden, ErrorRs("admin_secret_invalid"))
                         return@post
                     }
                 }
@@ -74,7 +86,7 @@ fun Route.authRoutes() {
             val rq = call.receive<LoginRq>()
             val dto = service.verifyAndGet(rq.email.trim(), rq.password)
             if (dto == null) {
-                call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "invalid credentials"))
+                call.respond(HttpStatusCode.Unauthorized, ErrorRs("invalid credentials"))
             } else {
                 val token = JWT.create()
                     .withIssuer(JwtConfig.issuer)
@@ -85,7 +97,7 @@ fun Route.authRoutes() {
                     .withExpiresAt(Date(System.currentTimeMillis() + 1000L * 60 * 60 * 12))
                     .sign(JwtConfig.algorithm)
 
-                call.respond(mapOf("token" to token))
+                call.respond(LoginRs(token))
             }
         }
 
@@ -102,10 +114,10 @@ fun Route.authRoutes() {
                     mailError = e.message ?: "Unknown error"
                 }
             }
-            call.respond(HttpStatusCode.OK, mapOf(
-                "ok" to (token != null && mailOk),
-                "mailOk" to mailOk,
-                "mailError" to mailError
+            call.respond(HttpStatusCode.OK, ForgotRs(
+                ok = token != null && mailOk,
+                mailOk = mailOk,
+                mailError = mailError
             ))
         }
 
@@ -113,9 +125,9 @@ fun Route.authRoutes() {
             val rq = call.receive<ResetRq>()
             val ok = reset.resetPassword(rq.email.trim(), rq.token, rq.newPassword)
             if (ok) {
-                call.respond(HttpStatusCode.OK, mapOf("status" to "password_updated"))
+                call.respond(HttpStatusCode.OK, ResetRs("password_updated"))
             } else {
-                call.respond(HttpStatusCode.BadRequest, mapOf("error" to "invalid_or_expired_token"))
+                call.respond(HttpStatusCode.BadRequest, ErrorRs("invalid_or_expired_token"))
             }
         }
     }
