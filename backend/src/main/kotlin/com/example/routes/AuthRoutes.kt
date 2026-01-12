@@ -92,10 +92,21 @@ fun Route.authRoutes() {
         post("/forgot") {
             val rq = call.receive<ForgotRq>()
             val token = reset.requestReset(rq.email.trim())
+            var mailError: String? = null
+            var mailOk = false
             if (token != null) {
-                mail.sendPasswordReset(rq.email.trim(), token)
+                try {
+                    mail.sendPasswordReset(rq.email.trim(), token)
+                    mailOk = true
+                } catch (e: Exception) {
+                    mailError = e.message ?: "Unknown error"
+                }
             }
-            call.respond(HttpStatusCode.OK, mapOf("ok" to true))
+            call.respond(HttpStatusCode.OK, mapOf(
+                "ok" to (token != null && mailOk),
+                "mailOk" to mailOk,
+                "mailError" to mailError
+            ))
         }
 
         post("/reset") {
