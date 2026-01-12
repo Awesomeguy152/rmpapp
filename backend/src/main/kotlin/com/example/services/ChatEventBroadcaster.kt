@@ -111,7 +111,11 @@ object ChatEventBroadcaster {
         
         // Рассылаем событие о выходе пользователя офлайн
         if (wentOffline) {
-            broadcastPresence(userId, isOnline = false)
+            try {
+                broadcastPresence(userId, isOnline = false)
+            } catch (_: Exception) {
+                // Ignore broadcast errors during shutdown
+            }
         }
     }
 

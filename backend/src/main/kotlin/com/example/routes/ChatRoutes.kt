@@ -99,7 +99,9 @@ fun Route.chatRoutes() {
                 val principal = call.principal<JWTPrincipal>()
                 val userId = principal?.userIdOrNull()
                 if (userId == null) {
-                    close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "unauthorized"))
+                    try {
+                        close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "unauthorized"))
+                    } catch (_: Exception) { }
                     return@webSocket
                 }
 
@@ -109,6 +111,10 @@ fun Route.chatRoutes() {
                     for (frame in incoming) {
                         if (frame is Frame.Close) break
                     }
+                } catch (_: kotlinx.coroutines.CancellationException) {
+                    // Normal cancellation on disconnect
+                } catch (_: Exception) {
+                    // Connection closed unexpectedly
                 } finally {
                     ChatEventBroadcaster.unregister(userId, this)
                 }
