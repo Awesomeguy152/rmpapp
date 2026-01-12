@@ -49,11 +49,19 @@ class RegisterViewModel(
             _uiState.value = currentState.copy(isLoading = true, error = null)
             try {
                 val registered = authService.register(currentState.email, currentState.password)
+                
+                // Если регистрация не удалась - возможно пользователь уже существует, пробуем залогиниться
                 if (!registered) {
-                    _uiState.value = currentState.copy(
-                        isLoading = false,
-                        error = getString(R.string.register_failed)
-                    )
+                    val loggedIn = authService.login(currentState.email, currentState.password)
+                    if (loggedIn) {
+                        MyFirebaseMessagingService.registerToken(application, authService)
+                        _uiState.value = currentState.copy(isLoading = false, isRegisterSuccessful = true)
+                    } else {
+                        _uiState.value = currentState.copy(
+                            isLoading = false,
+                            error = getString(R.string.register_failed)
+                        )
+                    }
                     return@launch
                 }
 
@@ -70,14 +78,26 @@ class RegisterViewModel(
                     )
                 }
             } catch (e: ClientRequestException) {
-                val serverError = runCatching {
-                    Json.decodeFromString<ErrorResponse>(e.response.bodyAsText())
-                }.getOrNull()?.error
+                // При ошибке регистрации (например, пользователь уже существует) - пробуем залогиниться
+                val loggedIn = try {
+                    authService.login(currentState.email, currentState.password)
+                } catch (loginEx: Exception) {
+                    false
+                }
+                
+                if (loggedIn) {
+                    MyFirebaseMessagingService.registerToken(application, authService)
+                    _uiState.value = currentState.copy(isLoading = false, isRegisterSuccessful = true)
+                } else {
+                    val serverError = runCatching {
+                        Json.decodeFromString<ErrorResponse>(e.response.bodyAsText())
+                    }.getOrNull()?.error
 
-                _uiState.value = currentState.copy(
-                    isLoading = false,
-                    error = serverError ?: getString(R.string.register_failed)
-                )
+                    _uiState.value = currentState.copy(
+                        isLoading = false,
+                        error = serverError ?: getString(R.string.register_failed)
+                    )
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
                 _uiState.value = currentState.copy(

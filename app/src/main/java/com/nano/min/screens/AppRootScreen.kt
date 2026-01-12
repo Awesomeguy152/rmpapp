@@ -1,5 +1,6 @@
 package com.nano.min.screens
 
+import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -295,8 +296,11 @@ fun AppRootScreen(
 						)
 					}
 					IconButton(onClick = {
+						Log.d("AppRootScreen", "LOGOUT CLICKED!")
 						viewModel.logout()
+						Log.d("AppRootScreen", "viewModel.logout() done, calling onLogout()")
 						onLogout()
+						Log.d("AppRootScreen", "onLogout() done")
 					}) {
 						Icon(
 							imageVector = Icons.AutoMirrored.Filled.Logout,
@@ -395,6 +399,12 @@ fun AppRootScreen(
 							onArchiveConversation = { viewModel.archiveConversation(it) },
 							onMuteConversation = { viewModel.muteConversation(it) },
 							onDeleteConversation = { viewModel.deleteConversation(it) },
+							onLogout = {
+								viewModel.logout()
+								onLogout()
+							},
+							onProfileClick = onProfileClick,
+							onMeetingsClick = onMeetingsClick,
 							modifier = Modifier.fillMaxSize()
 						)
 					}
@@ -410,6 +420,12 @@ fun AppRootScreen(
 							onArchiveConversation = { viewModel.archiveConversation(it) },
 							onMuteConversation = { viewModel.muteConversation(it) },
 							onDeleteConversation = { viewModel.deleteConversation(it) },
+							onLogout = {
+								viewModel.logout()
+								onLogout()
+							},
+							onProfileClick = onProfileClick,
+							onMeetingsClick = onMeetingsClick,
 							modifier = Modifier
 								.widthIn(max = 360.dp)
 								.fillMaxHeight()
@@ -471,6 +487,9 @@ private fun ConversationListPanel(
 	onArchiveConversation: (String) -> Unit,
 	onMuteConversation: (String) -> Unit,
 	onDeleteConversation: (String) -> Unit,
+	onLogout: () -> Unit = {},
+	onProfileClick: () -> Unit = {},
+	onMeetingsClick: () -> Unit = {},
 	modifier: Modifier = Modifier
 ) {
 	val colorScheme = MaterialTheme.colorScheme
@@ -492,11 +511,44 @@ private fun ConversationListPanel(
 					.padding(horizontal = 22.dp, vertical = 18.dp),
 				verticalArrangement = Arrangement.spacedBy(10.dp)
 			) {
-				Text(
-					text = stringResource(R.string.conversation_recent),
-					style = MaterialTheme.typography.titleMedium,
-					color = colorScheme.onSurface
-				)
+				// Заголовок с кнопками действий
+				Row(
+					modifier = Modifier.fillMaxWidth(),
+					horizontalArrangement = Arrangement.SpaceBetween,
+					verticalAlignment = Alignment.CenterVertically
+				) {
+					Text(
+						text = stringResource(R.string.conversation_recent),
+						style = MaterialTheme.typography.titleMedium,
+						color = colorScheme.onSurface
+					)
+					Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+						IconButton(onClick = onMeetingsClick) {
+							Icon(
+								imageVector = Icons.Default.CalendarMonth,
+								contentDescription = stringResource(R.string.screen_meetings),
+								tint = colorScheme.onSurfaceVariant
+							)
+						}
+						IconButton(onClick = onProfileClick) {
+							Icon(
+								imageVector = Icons.Default.AccountCircle,
+								contentDescription = stringResource(R.string.screen_profile),
+								tint = colorScheme.onSurfaceVariant
+							)
+						}
+						IconButton(onClick = {
+							Log.d("ConversationListPanel", "LOGOUT CLICKED!")
+							onLogout()
+						}) {
+							Icon(
+								imageVector = Icons.AutoMirrored.Filled.Logout,
+								contentDescription = stringResource(R.string.action_logout),
+								tint = colorScheme.error
+							)
+						}
+					}
+				}
 				Row(
 					verticalAlignment = Alignment.CenterVertically,
 					horizontalArrangement = Arrangement.spacedBy(8.dp)
