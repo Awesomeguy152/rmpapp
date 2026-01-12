@@ -229,7 +229,7 @@ fun AppRootScreen(
 		snackbarHost = { SnackbarHost(snackbarHostState) },
 		topBar = {
 			CenterAlignedTopAppBar(
-				colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+				colors = TopAppBarDefaults.topAppBarColors(
 					containerColor = Color.Transparent,
 					titleContentColor = colorScheme.onSurface
 				),
@@ -370,8 +370,6 @@ fun AppRootScreen(
 							onToggleSearch = viewModel::toggleSearchMode,
 							onSearchQueryChange = viewModel::updateSearchQuery,
 							onClearSearch = viewModel::clearSearch,
-							onAddAttachment = viewModel::addAttachment,
-							onRemoveAttachment = viewModel::removeAttachment,
 							onSendVoiceMessage = viewModel::sendVoiceMessage,
 							onStartVoiceRecording = viewModel::startVoiceRecording,
 							onStopVoiceRecording = viewModel::stopVoiceRecording,
@@ -441,8 +439,6 @@ fun AppRootScreen(
 							onToggleSearch = viewModel::toggleSearchMode,
 							onSearchQueryChange = viewModel::updateSearchQuery,
 							onClearSearch = viewModel::clearSearch,
-							onAddAttachment = viewModel::addAttachment,
-							onRemoveAttachment = viewModel::removeAttachment,
 							onSendVoiceMessage = viewModel::sendVoiceMessage,
 							onStartVoiceRecording = viewModel::startVoiceRecording,
 							onStopVoiceRecording = viewModel::stopVoiceRecording,
@@ -1178,8 +1174,6 @@ private fun ConversationDetailPanel(
 	onToggleSearch: () -> Unit,
 	onSearchQueryChange: (String) -> Unit,
 	onClearSearch: () -> Unit,
-	onAddAttachment: (android.net.Uri, String, String, Long) -> Unit,
-	onRemoveAttachment: (android.net.Uri) -> Unit,
 	onSendVoiceMessage: (ByteArray, Long) -> Unit,
 	onStartVoiceRecording: () -> Unit,
 	onStopVoiceRecording: () -> Unit,
