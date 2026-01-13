@@ -13,10 +13,10 @@ object ValidationUtils {
     
     /**
      * Проверяет валидность пароля
-     * Минимум 6 символов
+     * Минимум 8 символов
      */
     fun isValidPassword(password: String): Boolean {
-        return password.length >= 6
+        return password.length >= 8
     }
     
     /**
@@ -36,7 +36,7 @@ object ValidationUtils {
     fun getPasswordError(password: String): PasswordValidationError? {
         return when {
             password.isBlank() -> PasswordValidationError.EMPTY
-            password.length < 6 -> PasswordValidationError.TOO_SHORT
+            password.length < 8 -> PasswordValidationError.TOO_SHORT
             else -> null
         }
     }
