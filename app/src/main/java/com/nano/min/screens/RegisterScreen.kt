@@ -62,6 +62,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.nano.min.R
+import com.nano.min.util.EmailValidationError
+import com.nano.min.util.PasswordValidationError
 import com.nano.min.viewmodel.RegisterViewModel
 import org.koin.androidx.compose.koinViewModel
 
@@ -185,16 +187,30 @@ fun RegisterScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = colorScheme.primary,
+                            focusedBorderColor = if (uiState.emailError != null) colorScheme.error else colorScheme.primary,
+                            unfocusedBorderColor = if (uiState.emailError != null) colorScheme.error else colorScheme.outline,
                             unfocusedContainerColor = colorScheme.surfaceVariant.copy(alpha = 0.3f),
                             focusedContainerColor = colorScheme.surface
                         ),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
                         keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
-                        singleLine = true
+                        singleLine = true,
+                        isError = uiState.emailError != null,
+                        supportingText = if (uiState.emailError != null) {
+                            {
+                                Text(
+                                    text = when (uiState.emailError) {
+                                        EmailValidationError.EMPTY -> stringResource(R.string.error_email_empty)
+                                        EmailValidationError.INVALID_FORMAT -> stringResource(R.string.error_email_invalid)
+                                        else -> ""
+                                    },
+                                    color = colorScheme.error
+                                )
+                            }
+                        } else null
                     )
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     OutlinedTextField(
                         value = uiState.password,
@@ -213,7 +229,8 @@ fun RegisterScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = colorScheme.primary,
+                            focusedBorderColor = if (uiState.passwordError != null) colorScheme.error else colorScheme.primary,
+                            unfocusedBorderColor = if (uiState.passwordError != null) colorScheme.error else colorScheme.outline,
                             unfocusedContainerColor = colorScheme.surfaceVariant.copy(alpha = 0.3f),
                             focusedContainerColor = colorScheme.surface
                         ),
@@ -223,10 +240,23 @@ fun RegisterScreen(
                             focusManager.clearFocus()
                             viewModel.register()
                         }),
-                        singleLine = true
+                        singleLine = true,
+                        isError = uiState.passwordError != null,
+                        supportingText = if (uiState.passwordError != null) {
+                            {
+                                Text(
+                                    text = when (uiState.passwordError) {
+                                        PasswordValidationError.EMPTY -> stringResource(R.string.error_password_empty)
+                                        PasswordValidationError.TOO_SHORT -> stringResource(R.string.error_password_short)
+                                        else -> ""
+                                    },
+                                    color = colorScheme.error
+                                )
+                            }
+                        } else null
                     )
 
-                    Spacer(modifier = Modifier.height(32.dp))
+                    Spacer(modifier = Modifier.height(24.dp))
 
                     Button(
                         onClick = { viewModel.register() },

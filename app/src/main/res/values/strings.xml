@@ -29,6 +29,13 @@
     <string name="register_empty_fields">Заполните все поля</string>
     <string name="register_failed">Не удалось зарегистрироваться. Попробуйте ещё раз.</string>
     <string name="register_auto_login_failed">Регистрация прошла, но автоматический вход не удался. Попробуйте войти вручную.</string>
+    
+    <!-- Ошибки валидации -->
+    <string name="error_email_empty">Введите email</string>
+    <string name="error_email_invalid">Некорректный формат email</string>
+    <string name="error_password_empty">Введите пароль</string>
+    <string name="error_password_short">Пароль должен быть не менее 6 символов</string>
+    
     <string name="new_chat">Создать новый чат</string>
     <string name="menu">Открыть меню</string>
     <string name="error_empty_message">Сообщение не может быть пустым</string>
@@ -106,6 +113,8 @@
     <string name="error_leave_conversation">Не удалось выйти из беседы. Попробуйте ещё раз.</string>
     <string name="leave_conversation">Выйти из беседы</string>
     <string name="leave_conversation_confirm">Вы уверены, что хотите выйти из этой беседы?</string>
+    <string name="group_info_title">Информация о группе</string>
+    <string name="remove_member">Удалить участника</string>
     <string name="delete_conversation">Удалить беседу</string>
     <string name="forward_message">Переслать</string>
     <string name="forward_to">Переслать в…</string>

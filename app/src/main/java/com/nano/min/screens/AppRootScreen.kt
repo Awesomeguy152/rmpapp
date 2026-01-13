@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PushPin
@@ -1213,6 +1214,7 @@ private fun ConversationDetailPanel(
 	}
 
 	var editingMessageId by remember { mutableStateOf<String?>(null) }
+	var showGroupInfo by remember { mutableStateOf(false) }
 	val haptic = LocalHapticFeedback.current
 	val colorScheme = MaterialTheme.colorScheme
 	val context = LocalContext.current
@@ -1374,6 +1376,22 @@ private fun ConversationDetailPanel(
 			onLoadMore()
 		}
 	}
+	
+	// Показываем экран информации о группе
+	if (showGroupInfo && isGroupConversation) {
+		GroupInfoScreen(
+			conversation = conversation,
+			currentUserId = currentUserId,
+			isOwner = isOwner,
+			isBusy = state.isLoading || state.isSending,
+			onUpdateTopic = onUpdateTopic,
+			onAddMembers = onAddMembers,
+			onRemoveMember = onRemoveMember,
+			onLeaveConversation = onLeaveConversation,
+			onBack = { showGroupInfo = false }
+		)
+		return
+	}
 
 	Surface(
 		modifier = modifier.fillMaxSize(),
@@ -1403,6 +1421,16 @@ private fun ConversationDetailPanel(
 						style = MaterialTheme.typography.titleMedium,
 						modifier = Modifier.weight(1f)
 					)
+					// Кнопка информации о группе
+					if (isGroupConversation) {
+						IconButton(onClick = { showGroupInfo = true }) {
+							Icon(
+								imageVector = Icons.Default.Group,
+								contentDescription = stringResource(R.string.group_info_title),
+								tint = colorScheme.primary
+							)
+						}
+					}
 					// Кнопка AI извлечения встреч
 					IconButton(
 						onClick = onExtractMeetings,
@@ -1630,20 +1658,8 @@ private fun ConversationDetailPanel(
 				}
 			}
 
-			if (isGroupConversation) {
-				item("group_${conversation.id}") {
-					GroupManagementSection(
-						conversation = conversation,
-						currentUserId = currentUserId,
-						isOwner = isOwner,
-						isBusy = state.isLoading || state.isSending,
-						onUpdateTopic = onUpdateTopic,
-						onAddMembers = onAddMembers,
-						onRemoveMember = onRemoveMember,
-						onLeaveConversation = onLeaveConversation
-					)
-				}
-			} else if (conversation.members.isNotEmpty()) {
+			// Для личных чатов показываем информацию об участнике
+			if (!isGroupConversation && conversation.members.isNotEmpty()) {
 				item("members_${conversation.id}") {
 					Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
 						Text(
