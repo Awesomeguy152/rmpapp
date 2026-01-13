@@ -18,6 +18,7 @@ import com.nano.min.screens.AppRootScreen
 import com.nano.min.screens.ProfileScreen
 import com.nano.min.screens.EditProfileScreen
 import com.nano.min.screens.MeetingsScreen
+import com.nano.min.viewmodel.MeetingsViewModel
 import org.koin.compose.koinInject
 
 @Composable
@@ -25,6 +26,7 @@ fun AppNavigationRoot(
     modifier: Modifier = Modifier,
 ) {
     val tokenStorage: TokenStorage = koinInject()
+    val meetingsViewModel: MeetingsViewModel = koinInject()
     var currentRoute by remember { mutableStateOf<Route>(LoginRoute) }
     var routeStack by remember { mutableStateOf(listOf<Route>(LoginRoute)) }
     var initialCheckDone by remember { mutableStateOf(false) }
@@ -39,6 +41,7 @@ fun AppNavigationRoot(
     fun navigateToLogin() {
         Log.d("AppNavigationRoot", "navigateToLogin - clearing token")
         tokenStorage.setToken(null)
+        meetingsViewModel.clearState() // Очищаем встречи при выходе
         loginScreenKey++ // Увеличиваем ключ для пересоздания LoginScreen
         currentRoute = LoginRoute
         routeStack = listOf(LoginRoute)

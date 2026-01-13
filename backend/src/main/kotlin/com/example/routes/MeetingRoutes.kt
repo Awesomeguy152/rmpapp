@@ -204,6 +204,45 @@ fun Route.meetingRoutes() {
                 meetingService.deleteMeeting(meetingId)
                 call.respond(HttpStatusCode.OK, mapOf("status" to "deleted"))
             }
+            
+            // Обновить встречу
+            put("/{meetingId}") {
+                val userId = call.userId() ?: return@put call.respondUnauthorized()
+                val meetingId = call.parameters["meetingId"]?.toUuidOrNull()
+                    ?: return@put call.respondError("invalid_meeting_id")
+                
+                val meeting = meetingService.getMeetingById(meetingId)
+                if (meeting == null) {
+                    return@put call.respond(HttpStatusCode.NotFound, mapOf("error" to "meeting_not_found"))
+                }
+                
+                // Только создатель может редактировать
+                if (meeting.creatorId != userId.toString()) {
+                    return@put call.respond(HttpStatusCode.Forbidden, mapOf("error" to "not_creator"))
+                }
+                
+                val rq = call.receive<UpdateMeetingRq>()
+                
+                val scheduledAt = try {
+                    Instant.parse(rq.scheduledAt)
+                } catch (e: Exception) {
+                    return@put call.respondError("invalid_date_format")
+                }
+                
+                val updated = meetingService.updateMeeting(
+                    meetingId = meetingId,
+                    title = rq.title,
+                    description = rq.description,
+                    scheduledAt = scheduledAt,
+                    location = rq.location
+                )
+                
+                if (updated != null) {
+                    call.respond(HttpStatusCode.OK, updated)
+                } else {
+                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "update_failed"))
+                }
+            }
         }
     }
 }
@@ -244,6 +283,14 @@ data class CreateFromAiRq(
 
 @kotlinx.serialization.Serializable
 data class CreatePersonalMeetingRq(
+    val title: String,
+    val description: String? = null,
+    val scheduledAt: String,
+    val location: String? = null
+)
+
+@kotlinx.serialization.Serializable
+data class UpdateMeetingRq(
     val title: String,
     val description: String? = null,
     val scheduledAt: String,

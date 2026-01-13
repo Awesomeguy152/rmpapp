@@ -325,3 +325,11 @@ data class RespondMeetingRequest(
 data class UpdateMeetingStatusRequest(
     val status: String
 )
+
+@Serializable
+data class UpdateMeetingRequest(
+    val title: String,
+    val description: String? = null,
+    val scheduledAt: String,
+    val location: String? = null
+)

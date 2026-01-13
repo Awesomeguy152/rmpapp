@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Min</string>
+    <string name="save">Сохранить</string>
     <string name="screen_login">Вход</string>
     <string name="screen_register">Регистрация</string>
     <string name="screen_forgotpass">Восстановление пароля</string>
@@ -164,6 +165,7 @@
     <string name="meeting_accept">Принять</string>
     <string name="meeting_decline">Отклонить</string>
     <string name="meeting_delete">Удалить</string>
+    <string name="meeting_edit">Редактировать</string>
     <string name="meeting_location">Место: %s</string>
     <string name="meeting_ai_generated">Предложено AI</string>
     <string name="ai_extract_meetings">Найти встречи</string>

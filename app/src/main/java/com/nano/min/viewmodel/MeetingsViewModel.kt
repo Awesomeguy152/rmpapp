@@ -225,6 +225,47 @@ class MeetingsViewModel(
                 }
         }
     }
+    
+    /**
+     * Обновить встречу
+     */
+    fun updateMeeting(
+        meetingId: String,
+        title: String,
+        description: String?,
+        scheduledAt: String,
+        location: String?
+    ) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            
+            meetingRepository.updateMeeting(
+                meetingId = meetingId,
+                title = title,
+                description = description,
+                scheduledAt = scheduledAt,
+                location = location
+            )
+                .onSuccess { updatedMeeting ->
+                    _uiState.update { state ->
+                        state.copy(
+                            meetings = state.meetings.map { 
+                                if (it.id == meetingId) updatedMeeting else it 
+                            }.sortedBy { it.scheduledAt },
+                            isLoading = false
+                        )
+                    }
+                }
+                .onFailure { error ->
+                    _uiState.update { 
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = error.message
+                        )
+                    }
+                }
+        }
+    }
 
     /**
      * Выбрать встречу для просмотра деталей
@@ -245,6 +286,13 @@ class MeetingsViewModel(
      */
     fun clearError() {
         _uiState.update { it.copy(errorMessage = null, errorMessageResId = null) }
+    }
+    
+    /**
+     * Очистить состояние (при logout)
+     */
+    fun clearState() {
+        _uiState.value = MeetingsUiState()
     }
 
     /**

@@ -140,6 +140,30 @@ class MeetingRepository(
                 Result.failure(e)
             }
         }
+    
+    /**
+     * Обновить встречу
+     */
+    suspend fun updateMeeting(
+        meetingId: String,
+        title: String,
+        description: String?,
+        scheduledAt: String,
+        location: String?
+    ): Result<MeetingDto> = withContext(Dispatchers.IO) {
+        try {
+            val request = UpdateMeetingRequest(
+                title = title,
+                description = description,
+                scheduledAt = scheduledAt,
+                location = location
+            )
+            val updated = meetingService.updateMeeting(meetingId, request)
+            Result.success(updated)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 
     /**
      * Удалить встречу

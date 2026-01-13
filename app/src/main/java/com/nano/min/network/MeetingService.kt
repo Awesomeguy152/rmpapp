@@ -80,6 +80,14 @@ class MeetingService(private val apiClient: ApiClient) {
         }
         return true
     }
+    
+    /**
+     * Обновить встречу
+     */
+    suspend fun updateMeeting(meetingId: String, request: UpdateMeetingRequest): MeetingDto =
+        httpClient.put("$baseUrl/api/meetings/$meetingId") {
+            setBody(request)
+        }.body()
 
     /**
      * Удалить встречу

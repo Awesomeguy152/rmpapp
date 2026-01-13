@@ -135,6 +135,27 @@ class MeetingService {
         }
         updated > 0
     }
+    
+    fun updateMeeting(
+        meetingId: UUID,
+        title: String,
+        description: String?,
+        scheduledAt: Instant,
+        location: String?
+    ): MeetingDto? = transaction {
+        val updated = Meetings.update({ Meetings.id eq meetingId }) {
+            it[Meetings.title] = title
+            it[Meetings.description] = description
+            it[Meetings.scheduledAt] = scheduledAt
+            it[Meetings.location] = location
+            it[Meetings.updatedAt] = Instant.now()
+        }
+        if (updated > 0) {
+            Meetings.select { Meetings.id eq meetingId }.firstOrNull()?.toMeetingDto()
+        } else {
+            null
+        }
+    }
 
     fun deleteMeeting(meetingId: UUID): Boolean = transaction {
         MeetingParticipants.deleteWhere { MeetingParticipants.meetingId eq meetingId }

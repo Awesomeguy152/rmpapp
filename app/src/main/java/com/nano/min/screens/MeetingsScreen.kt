@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.*
@@ -39,8 +40,10 @@ fun MeetingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }
+    var meetingToEdit by remember { mutableStateOf<MeetingDto?>(null) }
 
     LaunchedEffect(Unit) {
+        viewModel.clearState() // Очищаем старые данные перед загрузкой
         viewModel.loadMeetings()
     }
 
@@ -92,6 +95,7 @@ fun MeetingsScreen(
                         onAccept = { viewModel.acceptMeeting(it.id) },
                         onDecline = { viewModel.declineMeeting(it.id) },
                         onDelete = { viewModel.deleteMeeting(it.id) },
+                        onEdit = { meetingToEdit = it },
                         formatDate = { viewModel.formatDate(it) }
                     )
                 }
@@ -120,6 +124,24 @@ fun MeetingsScreen(
                     location = location
                 )
                 showCreateDialog = false
+            }
+        )
+    }
+    
+    // Диалог редактирования встречи
+    meetingToEdit?.let { meeting ->
+        EditMeetingDialog(
+            meeting = meeting,
+            onDismiss = { meetingToEdit = null },
+            onSave = { title, description, dateTime, location ->
+                viewModel.updateMeeting(
+                    meetingId = meeting.id,
+                    title = title,
+                    description = description,
+                    scheduledAt = dateTime,
+                    location = location
+                )
+                meetingToEdit = null
             }
         )
     }
@@ -152,6 +174,7 @@ private fun MeetingsList(
     onAccept: (MeetingDto) -> Unit,
     onDecline: (MeetingDto) -> Unit,
     onDelete: (MeetingDto) -> Unit,
+    onEdit: (MeetingDto) -> Unit,
     formatDate: (String) -> String
 ) {
     LazyColumn(
@@ -165,6 +188,7 @@ private fun MeetingsList(
                 onAccept = { onAccept(meeting) },
                 onDecline = { onDecline(meeting) },
                 onDelete = { onDelete(meeting) },
+                onEdit = { onEdit(meeting) },
                 formatDate = formatDate
             )
         }
@@ -177,6 +201,7 @@ private fun MeetingCard(
     onAccept: () -> Unit,
     onDecline: () -> Unit,
     onDelete: () -> Unit,
+    onEdit: () -> Unit,
     formatDate: (String) -> String
 ) {
     val statusColor = when (meeting.status) {
@@ -355,6 +380,21 @@ private fun MeetingCard(
                     Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(stringResource(R.string.meeting_delete))
+                }
+            }
+            
+            // Edit button (для подтверждённых встреч)
+            if (participantStatus == "accepted" || meeting.status == "confirmed") {
+                Spacer(modifier = Modifier.height(8.dp))
+                TextButton(
+                    onClick = onEdit,
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(stringResource(R.string.meeting_edit))
                 }
             }
         }
@@ -605,6 +645,159 @@ fun CreateMeetingDialog(
                 }
             ) {
                 Text(stringResource(R.string.create_meeting))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(android.R.string.cancel))
+            }
+        }
+    )
+}
+
+/**
+ * Диалог для редактирования встречи
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditMeetingDialog(
+    meeting: MeetingDto,
+    onDismiss: () -> Unit,
+    onSave: (title: String, description: String?, dateTime: String, location: String?) -> Unit
+) {
+    // Парсим существующую дату
+    val existingDate = try {
+        val instant = java.time.Instant.parse(meeting.scheduledAt)
+        val zonedDateTime = instant.atZone(java.time.ZoneId.systemDefault())
+        Triple(
+            String.format("%02d.%02d.%04d", zonedDateTime.dayOfMonth, zonedDateTime.monthValue, zonedDateTime.year),
+            String.format("%02d:%02d", zonedDateTime.hour, zonedDateTime.minute),
+            true
+        )
+    } catch (e: Exception) {
+        Triple("", "", false)
+    }
+    
+    var title by remember { mutableStateOf(meeting.title) }
+    var description by remember { mutableStateOf(meeting.description ?: "") }
+    var location by remember { mutableStateOf(meeting.location ?: "") }
+    var date by remember { mutableStateOf(existingDate.first) }
+    var time by remember { mutableStateOf(existingDate.second) }
+    var titleError by remember { mutableStateOf(false) }
+    var dateError by remember { mutableStateOf(false) }
+    var timeError by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = stringResource(R.string.meeting_edit),
+                style = MaterialTheme.typography.headlineSmall
+            )
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Название встречи
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { 
+                        title = it
+                        titleError = false
+                    },
+                    label = { Text(stringResource(R.string.meeting_title_label)) },
+                    isError = titleError,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Описание
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text(stringResource(R.string.meeting_description_label)) },
+                    minLines = 2,
+                    maxLines = 3,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Дата (формат DD.MM.YYYY)
+                OutlinedTextField(
+                    value = date,
+                    onValueChange = { 
+                        date = it
+                        dateError = false
+                    },
+                    label = { Text(stringResource(R.string.meeting_date_label)) },
+                    placeholder = { Text("25.01.2026") },
+                    isError = dateError,
+                    singleLine = true,
+                    leadingIcon = {
+                        Icon(Icons.Default.CalendarMonth, contentDescription = null)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Время (формат HH:MM)
+                OutlinedTextField(
+                    value = time,
+                    onValueChange = { 
+                        time = it
+                        timeError = false
+                    },
+                    label = { Text(stringResource(R.string.meeting_time_label)) },
+                    placeholder = { Text("14:30") },
+                    isError = timeError,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Место
+                OutlinedTextField(
+                    value = location,
+                    onValueChange = { location = it },
+                    label = { Text(stringResource(R.string.meeting_location_label)) },
+                    singleLine = true,
+                    leadingIcon = {
+                        Icon(Icons.Default.LocationOn, contentDescription = null)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    // Валидация
+                    var hasError = false
+                    if (title.isBlank()) {
+                        titleError = true
+                        hasError = true
+                    }
+                    if (!date.matches(Regex("""\d{2}\.\d{2}\.\d{4}"""))) {
+                        dateError = true
+                        hasError = true
+                    }
+                    if (!time.matches(Regex("""\d{2}:\d{2}"""))) {
+                        timeError = true
+                        hasError = true
+                    }
+                    
+                    if (!hasError) {
+                        // Конвертируем в ISO формат
+                        val parts = date.split(".")
+                        val isoDateTime = "${parts[2]}-${parts[1]}-${parts[0]}T${time}:00Z"
+                        onSave(
+                            title,
+                            description.ifBlank { null },
+                            isoDateTime,
+                            location.ifBlank { null }
+                        )
+                    }
+                }
+            ) {
+                Text(stringResource(R.string.save))
             }
         },
         dismissButton = {
