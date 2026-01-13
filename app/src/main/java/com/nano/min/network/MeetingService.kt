@@ -93,7 +93,8 @@ class MeetingService(private val apiClient: ApiClient) {
      * Удалить встречу
      */
     suspend fun deleteMeeting(meetingId: String): Boolean {
-        httpClient.delete("$baseUrl/api/meetings/$meetingId")
-        return true
+        val response = httpClient.delete("$baseUrl/api/meetings/$meetingId")
+        android.util.Log.d("MeetingService", "Delete response status: ${response.status}")
+        return response.status.value in 200..299
     }
 }

@@ -76,7 +76,7 @@ fun GroupInfoScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.group_info_title)) },
+                title = { Text(stringResource(R.string.group_info_title), style = MaterialTheme.typography.titleMedium) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(

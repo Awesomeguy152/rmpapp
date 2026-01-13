@@ -210,8 +210,10 @@ class MeetingsViewModel(
      */
     fun deleteMeeting(meetingId: String) {
         viewModelScope.launch {
+            android.util.Log.d("MeetingsVM", "Deleting meeting: $meetingId")
             meetingRepository.deleteMeeting(meetingId)
                 .onSuccess {
+                    android.util.Log.d("MeetingsVM", "Delete success for: $meetingId")
                     _uiState.update { state ->
                         state.copy(
                             meetings = state.meetings.filter { it.id != meetingId }
@@ -219,6 +221,7 @@ class MeetingsViewModel(
                     }
                 }
                 .onFailure { error ->
+                    android.util.Log.e("MeetingsVM", "Delete failed: ${error.message}", error)
                     _uiState.update { 
                         it.copy(errorMessage = error.message)
                     }

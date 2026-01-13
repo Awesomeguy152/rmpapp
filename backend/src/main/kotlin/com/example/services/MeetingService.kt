@@ -161,6 +161,15 @@ class MeetingService {
         MeetingParticipants.deleteWhere { MeetingParticipants.meetingId eq meetingId }
         Meetings.deleteWhere { Meetings.id eq meetingId } > 0
     }
+    
+    /**
+     * Удалить участника из встречи (выход из встречи)
+     */
+    fun removeParticipant(meetingId: UUID, userId: UUID): Boolean = transaction {
+        MeetingParticipants.deleteWhere { 
+            (MeetingParticipants.meetingId eq meetingId) and (MeetingParticipants.userId eq userId)
+        } > 0
+    }
 
     fun getParticipants(meetingId: UUID): List<MeetingParticipantDto> = transaction {
         (MeetingParticipants innerJoin UserTable)

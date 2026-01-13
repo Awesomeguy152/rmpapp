@@ -170,9 +170,12 @@ class MeetingRepository(
      */
     suspend fun deleteMeeting(meetingId: String): Result<Boolean> = withContext(Dispatchers.IO) {
         try {
-            meetingService.deleteMeeting(meetingId)
-            Result.success(true)
+            android.util.Log.d("MeetingRepo", "Deleting meeting: $meetingId")
+            val result = meetingService.deleteMeeting(meetingId)
+            android.util.Log.d("MeetingRepo", "Delete result: $result")
+            Result.success(result)
         } catch (e: Exception) {
+            android.util.Log.e("MeetingRepo", "Delete error: ${e.message}", e)
             Result.failure(e)
         }
     }

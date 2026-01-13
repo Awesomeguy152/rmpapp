@@ -186,7 +186,7 @@ fun Route.meetingRoutes() {
                 call.respond(HttpStatusCode.OK, participants)
             }
             
-            // Удалить встречу
+            // Удалить встречу (создатель) или выйти из неё (участник)
             delete("/{meetingId}") {
                 val userId = call.userId() ?: return@delete call.respondUnauthorized()
                 val meetingId = call.parameters["meetingId"]?.toUuidOrNull()
@@ -197,12 +197,15 @@ fun Route.meetingRoutes() {
                     return@delete call.respond(HttpStatusCode.NotFound, mapOf("error" to "meeting_not_found"))
                 }
                 
-                if (meeting.creatorId != userId.toString()) {
-                    return@delete call.respond(HttpStatusCode.Forbidden, mapOf("error" to "not_creator"))
+                if (meeting.creatorId == userId.toString()) {
+                    // Создатель удаляет встречу полностью
+                    meetingService.deleteMeeting(meetingId)
+                    call.respond(HttpStatusCode.OK, mapOf("status" to "deleted"))
+                } else {
+                    // Участник выходит из встречи (удаляется из участников)
+                    meetingService.removeParticipant(meetingId, userId)
+                    call.respond(HttpStatusCode.OK, mapOf("status" to "left"))
                 }
-                
-                meetingService.deleteMeeting(meetingId)
-                call.respond(HttpStatusCode.OK, mapOf("status" to "deleted"))
             }
             
             // Обновить встречу
