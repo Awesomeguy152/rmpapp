@@ -159,6 +159,9 @@
     <string name="unpin_message">Открепить сообщение</string>
     <string name="no_pinned_messages">Нет закреплённых сообщений</string>
     <string name="offline_mode">Офлайн-режим — показаны данные из кеша</string>
+    <string name="archived_chats">Архив</string>
+    <string name="active_chats">Чаты</string>
+    <string name="archived_chats_empty">Нет архивированных чатов</string>
     
     <!-- Meetings -->
     <string name="screen_meetings">Встречи</string>

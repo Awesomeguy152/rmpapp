@@ -32,6 +32,13 @@ class ChatService(private val apiClient: ApiClient) {
             parameter("limit", limit)
             parameter("offset", offset)
         }.body()
+    
+    suspend fun listConversations(limit: Int = 50, offset: Int = 0, includeArchived: Boolean = false): List<ConversationSummaryDto> =
+        httpClient.get("$baseUrl/api/chat/conversations") {
+            parameter("limit", limit)
+            parameter("offset", offset)
+            parameter("includeArchived", includeArchived)
+        }.body()
 
     suspend fun getConversation(conversationId: String): ConversationSummaryDto =
         httpClient.get("$baseUrl/api/chat/conversations/$conversationId").body()

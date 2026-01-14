@@ -51,6 +51,8 @@ data class ConversationsUiState(
     val profileDisplayName: String? = null,
     val profileUsername: String? = null,
     val conversations: List<ConversationItem> = emptyList(),
+    val archivedConversations: List<ConversationItem> = emptyList(),
+    val showArchivedChats: Boolean = false,
     val isLoading: Boolean = false,
     val isSearchingContacts: Boolean = false,
     val contactSuggestions: List<ContactSuggestion> = emptyList(),
@@ -511,6 +513,10 @@ class ChatsViewModel(
                     state.copy(conversations = state.conversations.filter { it.id != conversationId })
                 }
                 _events.emit(ChatsEvent.ShowMessage(getString(R.string.conversation_archived)))
+                // Обновляем список архивированных, если открыт
+                if (_conversationState.value.showArchivedChats) {
+                    loadArchivedConversations()
+                }
             } catch (t: Throwable) {
                 handleNetworkError(t, R.string.error_generic)
             }
@@ -521,10 +527,41 @@ class ChatsViewModel(
         viewModelScope.launch {
             try {
                 val updated = chatService.unarchiveConversation(conversationId)
-                updateConversationInList(updated)
+                // Убираем из архивных
+                _conversationState.update { state ->
+                    state.copy(archivedConversations = state.archivedConversations.filter { it.id != conversationId })
+                }
                 _events.emit(ChatsEvent.ShowMessage(getString(R.string.conversation_unarchived)))
+                // Обновляем основной список
+                refreshConversations()
             } catch (t: Throwable) {
                 handleNetworkError(t, R.string.error_generic)
+            }
+        }
+    }
+    
+    fun toggleArchivedChats() {
+        val newShowArchived = !_conversationState.value.showArchivedChats
+        _conversationState.update { it.copy(showArchivedChats = newShowArchived) }
+        if (newShowArchived) {
+            loadArchivedConversations()
+        }
+    }
+    
+    fun loadArchivedConversations() {
+        viewModelScope.launch {
+            _conversationState.update { it.copy(isLoading = true) }
+            try {
+                val summaries = chatService.listConversations(includeArchived = true)
+                val meId = me?.id
+                val archivedItems = summaries
+                    .filter { it.archivedAt != null }
+                    .map { it.toConversationItem(meId) }
+                    .sortedByDescending { it.lastMessageTime }
+                _conversationState.update { it.copy(isLoading = false, archivedConversations = archivedItems) }
+            } catch (t: Throwable) {
+                _conversationState.update { it.copy(isLoading = false) }
+                handleNetworkError(t, R.string.error_load_conversations)
             }
         }
     }

@@ -64,16 +64,26 @@ class MailService(private val app: Application) {
     }
 
     fun send(to: String, subject: String, html: String) {
+        app.log.info("📧 Attempting to send email to: $to")
+        app.log.info("📧 SMTP config: host=$host, port=$port, user=${username.take(3)}***, ssl=$useSsl, starttls=$startTls")
+        
         // Отправляем асинхронно, чтобы не блокировать HTTP запрос
         emailExecutor.submit {
             try {
                 when {
-                    brevoApiKey.isNotBlank() -> sendViaBrevo(to, subject, html)
-                    username.isNotBlank() -> sendViaSMTP(to, subject, html)
-                    else -> app.log.error("❌ No email provider configured!")
+                    brevoApiKey.isNotBlank() -> {
+                        app.log.info("📧 Using Brevo API...")
+                        sendViaBrevo(to, subject, html)
+                    }
+                    username.isNotBlank() -> {
+                        app.log.info("📧 Using SMTP...")
+                        sendViaSMTP(to, subject, html)
+                    }
+                    else -> app.log.error("❌ No email provider configured! Set BREVO_API_KEY or SMTP_USER/SMTP_PASS")
                 }
             } catch (e: Exception) {
                 app.log.error("❌ Email send error: ${e.message}")
+                e.printStackTrace()
             }
         }
     }
@@ -114,13 +124,20 @@ class MailService(private val app: Application) {
     
     private fun sendViaSMTP(to: String, subject: String, html: String) {
         app.log.info("📧 SMTP: Connecting to $host:$port (SSL=$useSsl, STARTTLS=$startTls)")
-        val message = MimeMessage(session())
-        message.setFrom(InternetAddress(from, fromName, "UTF-8"))
-        message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(to))
-        message.setSubject(subject, "UTF-8")
-        message.setContent(html, "text/html; charset=UTF-8")
-        Transport.send(message)
-        app.log.info("✅ SMTP: sent email to=$to")
+        app.log.info("📧 SMTP: From=$from ($fromName), User=$username")
+        try {
+            val message = MimeMessage(session())
+            message.setFrom(InternetAddress(from, fromName, "UTF-8"))
+            message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(to))
+            message.setSubject(subject, "UTF-8")
+            message.setContent(html, "text/html; charset=UTF-8")
+            app.log.info("📧 SMTP: Sending message...")
+            Transport.send(message)
+            app.log.info("✅ SMTP: sent email to=$to")
+        } catch (e: Exception) {
+            app.log.error("❌ SMTP send failed: ${e.javaClass.simpleName}: ${e.message}")
+            throw e
+        }
     }
 
     fun sendPasswordReset(to: String, token: String) {

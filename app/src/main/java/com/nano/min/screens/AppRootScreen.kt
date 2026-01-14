@@ -49,6 +49,8 @@ import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.NotificationsOff
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SmartToy
@@ -399,6 +401,8 @@ fun AppRootScreen(
 							selectedConversationId = detailState.conversation?.id,
 							onCreateConversation = { showCreateSheet = true },
 							onRefresh = { viewModel.refreshConversations() },
+							onToggleArchived = { viewModel.toggleArchivedChats() },
+							onUnarchiveConversation = { viewModel.unarchiveConversation(it) },
 							onSelectConversation = { viewModel.selectConversation(it) },
 							onPinConversation = { viewModel.pinConversation(it) },
 							onArchiveConversation = { viewModel.archiveConversation(it) },
@@ -414,6 +418,8 @@ fun AppRootScreen(
 							selectedConversationId = detailState.conversation?.id,
 							onCreateConversation = { showCreateSheet = true },
 							onRefresh = { viewModel.refreshConversations() },
+							onToggleArchived = { viewModel.toggleArchivedChats() },
+							onUnarchiveConversation = { viewModel.unarchiveConversation(it) },
 							onSelectConversation = { viewModel.selectConversation(it) },
 							onPinConversation = { viewModel.pinConversation(it) },
 							onArchiveConversation = { viewModel.archiveConversation(it) },
@@ -475,6 +481,8 @@ private fun ConversationListPanel(
 	selectedConversationId: String?,
 	onCreateConversation: () -> Unit,
 	onRefresh: () -> Unit,
+	onToggleArchived: () -> Unit = {},
+	onUnarchiveConversation: (String) -> Unit = {},
 	onSelectConversation: (String) -> Unit,
 	onPinConversation: (String) -> Unit,
 	onArchiveConversation: (String) -> Unit,
@@ -543,6 +551,26 @@ private fun ConversationListPanel(
 							disabledLabelColor = colorScheme.onSurfaceVariant
 						)
 					)
+					AssistChip(
+						onClick = onToggleArchived,
+						label = { 
+							Text(
+								if (state.showArchivedChats) stringResource(R.string.active_chats) 
+								else stringResource(R.string.archived_chats)
+							)
+						},
+						leadingIcon = {
+							Icon(
+								imageVector = Icons.Filled.Archive,
+								contentDescription = null
+							)
+						},
+						colors = AssistChipDefaults.assistChipColors(
+							containerColor = if (state.showArchivedChats) colorScheme.tertiaryContainer else colorScheme.surfaceVariant.copy(alpha = 0.65f),
+							labelColor = if (state.showArchivedChats) colorScheme.onTertiaryContainer else colorScheme.onSurfaceVariant,
+							leadingIconContentColor = if (state.showArchivedChats) colorScheme.onTertiaryContainer else colorScheme.onSurfaceVariant
+						)
+					)
 				}
 				state.profileEmail?.let { email ->
 					Text(
@@ -596,8 +624,11 @@ private fun ConversationListPanel(
 				.weight(1f)
 				.fillMaxWidth()
 		) {
+			// Определяем какой список показывать
+			val displayList = if (state.showArchivedChats) state.archivedConversations else state.conversations
+			
 			when {
-				state.isLoading && state.conversations.isEmpty() -> {
+				state.isLoading && displayList.isEmpty() -> {
 					Box(
 						modifier = Modifier.fillMaxSize(),
 						contentAlignment = Alignment.Center
@@ -606,7 +637,7 @@ private fun ConversationListPanel(
 					}
 				}
 
-				state.conversations.isEmpty() -> {
+				displayList.isEmpty() -> {
 					Column(
 						modifier = Modifier
 							.fillMaxSize()
@@ -615,14 +646,14 @@ private fun ConversationListPanel(
 						verticalArrangement = Arrangement.Center
 					) {
 						Icon(
-							imageVector = Icons.AutoMirrored.Filled.Send,
+							imageVector = if (state.showArchivedChats) Icons.Filled.Archive else Icons.AutoMirrored.Filled.Send,
 							contentDescription = null,
 							tint = MaterialTheme.colorScheme.onSurfaceVariant,
 							modifier = Modifier.size(48.dp)
 						)
 						Spacer(modifier = Modifier.height(12.dp))
 						Text(
-							text = stringResource(R.string.conversation_list_empty),
+							text = stringResource(if (state.showArchivedChats) R.string.archived_chats_empty else R.string.conversation_list_empty),
 							style = MaterialTheme.typography.bodyMedium,
 							color = MaterialTheme.colorScheme.onSurfaceVariant,
 							textAlign = TextAlign.Center
@@ -644,7 +675,7 @@ private fun ConversationListPanel(
 							contentPadding = PaddingValues(vertical = 16.dp),
 							verticalArrangement = Arrangement.spacedBy(12.dp)
 						) {
-							items(state.conversations, key = { it.id }) { conversation ->
+							items(displayList, key = { it.id }) { conversation ->
 								SwipeableListItem(
 									isPinned = conversation.isPinned,
 									isArchived = conversation.isArchived,
@@ -652,7 +683,13 @@ private fun ConversationListPanel(
 									onSwipeAction = { action ->
 										when (action) {
 											SwipeAction.PIN, SwipeAction.UNPIN -> onPinConversation(conversation.id)
-											SwipeAction.ARCHIVE, SwipeAction.UNARCHIVE -> onArchiveConversation(conversation.id)
+											SwipeAction.ARCHIVE, SwipeAction.UNARCHIVE -> {
+												if (state.showArchivedChats) {
+													onUnarchiveConversation(conversation.id)
+												} else {
+													onArchiveConversation(conversation.id)
+												}
+											}
 											SwipeAction.MUTE, SwipeAction.UNMUTE -> onMuteConversation(conversation.id)
 											SwipeAction.DELETE -> onDeleteConversation(conversation.id)
 										}
@@ -674,12 +711,18 @@ private fun ConversationListPanel(
 					showActionsForConversation?.let { conv ->
 						ConversationActionsSheet(
 							isPinned = conv.isPinned,
-							isArchived = conv.isArchived,
+							isArchived = conv.isArchived || state.showArchivedChats,
 							isMuted = conv.isMuted,
 							isOwner = true, // Для direct всегда владелец
 							onDismiss = { showActionsForConversation = null },
 							onPin = { onPinConversation(conv.id) },
-							onArchive = { onArchiveConversation(conv.id) },
+							onArchive = { 
+								if (state.showArchivedChats) {
+									onUnarchiveConversation(conv.id)
+								} else {
+									onArchiveConversation(conv.id) 
+								}
+							},
 							onMute = { onMuteConversation(conv.id) },
 							onDelete = { onDeleteConversation(conv.id) }
 						)
@@ -784,6 +827,16 @@ private fun ConversationListItem(
 						} else {
 							conversation.title
 						}
+						// Иконка закреплённого чата
+						if (conversation.isPinned) {
+							Icon(
+								imageVector = Icons.Default.PushPin,
+								contentDescription = null,
+								modifier = Modifier.size(14.dp),
+								tint = colorScheme.primary
+							)
+							Spacer(modifier = Modifier.width(4.dp))
+						}
 						Text(
 							text = displayTitle,
 							style = MaterialTheme.typography.titleMedium,
@@ -791,6 +844,17 @@ private fun ConversationListItem(
 							overflow = TextOverflow.Ellipsis,
 							modifier = Modifier.weight(1f, fill = false)
 						)
+						// Иконка замьюченного чата
+						if (conversation.isMuted) {
+							Spacer(modifier = Modifier.width(6.dp))
+							Icon(
+								imageVector = Icons.Default.NotificationsOff,
+								contentDescription = stringResource(R.string.conversation_muted),
+								modifier = Modifier.size(16.dp),
+								tint = colorScheme.onSurfaceVariant
+							)
+						}
+						Spacer(modifier = Modifier.width(8.dp))
 						conversation.lastMessageTime?.let { time ->
 							Text(
 								text = formatRelativeTime(time),

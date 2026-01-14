@@ -646,9 +646,14 @@ fun CreateMeetingDialog(
                     }
                     
                     if (!hasError) {
-                        // Конвертируем в ISO формат
+                        // Конвертируем в ISO формат с учётом часового пояса
                         val parts = date.split(".")
-                        val isoDateTime = "${parts[2]}-${parts[1]}-${parts[0]}T${time}:00Z"
+                        val localDateTime = java.time.LocalDateTime.of(
+                            parts[2].toInt(), parts[1].toInt(), parts[0].toInt(),
+                            time.split(":")[0].toInt(), time.split(":")[1].toInt()
+                        )
+                        val zonedDateTime = localDateTime.atZone(java.time.ZoneId.systemDefault())
+                        val isoDateTime = zonedDateTime.toInstant().toString()
                         onCreate(
                             title,
                             description.ifBlank { null },
@@ -799,9 +804,14 @@ fun EditMeetingDialog(
                     }
                     
                     if (!hasError) {
-                        // Конвертируем в ISO формат
+                        // Конвертируем в ISO формат с учётом часового пояса
                         val parts = date.split(".")
-                        val isoDateTime = "${parts[2]}-${parts[1]}-${parts[0]}T${time}:00Z"
+                        val localDateTime = java.time.LocalDateTime.of(
+                            parts[2].toInt(), parts[1].toInt(), parts[0].toInt(),
+                            time.split(":")[0].toInt(), time.split(":")[1].toInt()
+                        )
+                        val zonedDateTime = localDateTime.atZone(java.time.ZoneId.systemDefault())
+                        val isoDateTime = zonedDateTime.toInstant().toString()
                         onSave(
                             title,
                             description.ifBlank { null },
