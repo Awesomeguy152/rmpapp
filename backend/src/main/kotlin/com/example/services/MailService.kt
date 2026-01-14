@@ -19,7 +19,10 @@ import java.util.Properties
 import kotlinx.serialization.json.*
 
 class MailService(private val app: Application) {
-    // Resend API (приоритет)
+    // Brevo (Sendinblue) - 300 писем/день бесплатно
+    private val brevoApiKey = env("BREVO_API_KEY", "")
+    
+    // Resend API (fallback)
     private val resendApiKey = env("RESEND_API_KEY", "")
     
     // SMTP fallback
@@ -27,7 +30,8 @@ class MailService(private val app: Application) {
     private val port = env("SMTP_PORT", "1025").toInt()
     private val username = env("SMTP_USER", "")
     private val password = env("SMTP_PASS", "")
-    private val from = env("SMTP_FROM", "onboarding@resend.dev")
+    private val from = env("SMTP_FROM", "noreply@rmpapp.com")
+    private val fromName = env("SMTP_FROM_NAME", "RMP App")
     private val startTls = env("SMTP_STARTTLS", "false").toBoolean()
     private val resetBase = env("RESET_LINK_BASE", "http://localhost:3000")
     
@@ -54,18 +58,64 @@ class MailService(private val app: Application) {
     }
 
     fun send(to: String, subject: String, html: String) {
-        // Используем Resend если есть API ключ
-        if (resendApiKey.isNotBlank()) {
-            sendViaResend(to, subject, html)
-        } else {
-            sendViaSMTP(to, subject, html)
+        // Приоритет: Brevo -> Resend -> SMTP
+        when {
+            brevoApiKey.isNotBlank() -> sendViaBrevo(to, subject, html)
+            resendApiKey.isNotBlank() -> sendViaResend(to, subject, html)
+            else -> sendViaSMTP(to, subject, html)
+        }
+    }
+    
+    private fun sendViaBrevo(to: String, subject: String, html: String) {
+        try {
+            val requestBody = buildJsonObject {
+                put("sender", buildJsonObject {
+                    put("name", fromName)
+                    put("email", from)
+                })
+                put("to", buildJsonArray {
+                    add(buildJsonObject {
+                        put("email", to)
+                    })
+                })
+                put("subject", subject)
+                put("htmlContent", html)
+            }.toString()
+            
+            val request = HttpRequest.newBuilder()
+                .uri(URI.create("https://api.brevo.com/v3/smtp/email"))
+                .header("api-key", brevoApiKey)
+                .header("Content-Type", "application/json")
+                .header("Accept", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                .build()
+            
+            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+            
+            if (response.statusCode() in 200..299) {
+                app.log.info("✅ Brevo: sent email to=$to, subject=\"$subject\"")
+            } else {
+                app.log.error("❌ Brevo error: ${response.statusCode()} - ${response.body()}")
+                // Fallback to Resend or SMTP
+                if (resendApiKey.isNotBlank()) {
+                    app.log.info("Trying Resend as fallback...")
+                    sendViaResend(to, subject, html)
+                }
+            }
+        } catch (e: Exception) {
+            app.log.error("❌ Brevo exception: ${e.message}")
+            e.printStackTrace()
+            // Fallback
+            if (resendApiKey.isNotBlank()) {
+                sendViaResend(to, subject, html)
+            }
         }
     }
     
     private fun sendViaResend(to: String, subject: String, html: String) {
         try {
             val requestBody = buildJsonObject {
-                put("from", from)
+                put("from", "$fromName <$from>")
                 put("to", buildJsonArray { add(to) })
                 put("subject", subject)
                 put("html", html)
