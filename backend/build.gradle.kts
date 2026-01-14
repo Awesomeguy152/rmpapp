@@ -35,6 +35,10 @@ dependencies {
     implementation("org.postgresql:postgresql:42.7.3")
     implementation("at.favre.lib:bcrypt:0.10.2")
     
+    // ClickHouse for analytics and logging
+    implementation("com.clickhouse:clickhouse-jdbc:0.6.0")
+    implementation("org.lz4:lz4-java:1.8.0")
+    
     // Firebase Admin SDK for push notifications
     implementation("com.google.auth:google-auth-library-oauth2-http:1.23.0")
     
