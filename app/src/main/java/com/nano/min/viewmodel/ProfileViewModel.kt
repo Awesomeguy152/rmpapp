@@ -2,6 +2,7 @@ package com.nano.min.viewmodel
 
 import android.app.Application
 import androidx.lifecycle.viewModelScope
+import com.nano.min.R
 import com.nano.min.network.AuthService
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,7 +45,7 @@ class ProfileViewModel(
 
     fun loadProfile() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             try {
                 val me = authService.me()
                 if (me != null) {
@@ -57,10 +58,10 @@ class ProfileViewModel(
                         isLoading = false
                     )
                 } else {
-                    _uiState.value = _uiState.value.copy(isLoading = false, error = "Failed to load profile")
+                    _uiState.value = _uiState.value.copy(isLoading = false, error = getString(R.string.error_load_profile))
                 }
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(isLoading = false, error = e.message ?: "Unknown error")
+                _uiState.value = _uiState.value.copy(isLoading = false, error = getString(R.string.error_load_profile))
             }
         }
     }
@@ -83,7 +84,7 @@ class ProfileViewModel(
 
     fun saveProfile() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             try {
                 val state = _uiState.value
                 val updated = authService.updateProfile(
@@ -101,10 +102,10 @@ class ProfileViewModel(
                     )
                     _events.send(ProfileEvent.SaveSuccess)
                 } else {
-                    _uiState.value = _uiState.value.copy(isLoading = false, error = "Failed to update profile")
+                    _uiState.value = _uiState.value.copy(isLoading = false, error = getString(R.string.error_save_profile))
                 }
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(isLoading = false, error = e.message ?: "Unknown error")
+                _uiState.value = _uiState.value.copy(isLoading = false, error = getString(R.string.error_save_profile))
             }
         }
     }

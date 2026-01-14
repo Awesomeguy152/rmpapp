@@ -215,7 +215,9 @@ class ChatsViewModel(
     }
 
     fun selectConversation(conversationId: String) {
+        // Ищем чат и в активных, и в архивированных
         val conversation = _conversationState.value.conversations.find { it.id == conversationId }
+            ?: _conversationState.value.archivedConversations.find { it.id == conversationId }
         if (conversation == null) {
             selectedConversationId = null
             _detailState.value = ConversationDetailUiState()

@@ -17,6 +17,9 @@
     <string name="register_rationale">Нет аккаунта? Зарегистрироваться</string>
     <string name="login_title">С возвращением</string>
     <string name="login_subtitle">Войдите, чтобы продолжить</string>
+    <string name="login_hint_toggle">Показать подсказку о логине</string>
+    <string name="login_hint_text">Что такое логин? Логин — это ваш логин.</string>
+    <string name="login_field_label">Логин</string>
     <string name="register_title">Создать аккаунт</string>
     <string name="register_subtitle">Присоединяйтесь к нам</string>
     <string name="username">Имя пользователя</string>
@@ -70,6 +73,8 @@
     <string name="error_create_conversation">Не удалось создать диалог. Попробуйте ещё раз.</string>
     <string name="error_load_conversations">Не удалось загрузить чаты</string>
     <string name="error_load_messages">Не удалось загрузить сообщения</string>
+    <string name="error_load_profile">Не удалось загрузить профиль</string>
+    <string name="error_save_profile">Не удалось сохранить профиль</string>
     <string name="title_group_chat">Групповой чат</string>
     <string name="title_direct_chat">Чат с %s</string>
     <string name="title_direct_chat_fallback">Личный чат</string>

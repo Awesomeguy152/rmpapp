@@ -162,15 +162,18 @@ class MailService(private val app: Application) {
      */
     fun sendSync(to: String, subject: String, html: String): String? {
         app.log.info("📧 [SYNC] Attempting to send email to: $to")
+        app.log.info("📧 [SYNC] BREVO_API_KEY set: ${brevoApiKey.isNotBlank()} (length=${brevoApiKey.length})")
         app.log.info("📧 [SYNC] SMTP config: host=$host, port=$port, user=$username, from=$from")
         
         return try {
             when {
                 brevoApiKey.isNotBlank() -> {
+                    app.log.info("📧 [SYNC] Using Brevo API...")
                     sendViaBrevo(to, subject, html)
                     null
                 }
                 username.isNotBlank() -> {
+                    app.log.info("📧 [SYNC] Using SMTP...")
                     sendViaSMTP(to, subject, html)
                     null
                 }

@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -1811,13 +1812,13 @@ private fun ConversationDetailPanel(
 					)
 				}
 			} else {
-				var lastDate: String? = null
-				items(
+				itemsIndexed(
 					items = state.messages,
-					key = { it.id }
-				) { message ->
-					if (message.dateHeader != lastDate) {
-						lastDate = message.dateHeader
+					key = { _, message -> message.id }
+				) { index, message ->
+					// Показываем разделитель даты только если это первое сообщение или дата отличается от предыдущего
+					val showDateHeader = index == 0 || state.messages.getOrNull(index - 1)?.dateHeader != message.dateHeader
+					if (showDateHeader) {
 						Box(
 							modifier = Modifier
 								.fillMaxWidth()

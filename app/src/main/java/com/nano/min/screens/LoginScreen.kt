@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +25,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -37,6 +39,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -52,6 +55,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -78,6 +82,7 @@ fun LoginScreen(
     val colorScheme = MaterialTheme.colorScheme
     val focusManager = LocalFocusManager.current
     var passwordVisible by remember { mutableStateOf(false) }
+    var showLoginHint by remember { mutableStateOf(false) }
     
     // Сбрасываем СИНХРОННО при первой композиции
     val initialReset = remember {
@@ -106,6 +111,13 @@ fun LoginScreen(
                     )
                 )
             )
+            .pointerInput(showLoginHint) {
+                detectTapGestures {
+                    if (showLoginHint) {
+                        showLoginHint = false
+                    }
+                }
+            }
     ) {
         Column(
             modifier = Modifier
@@ -190,36 +202,63 @@ fun LoginScreen(
                         }
                     }
 
-                    OutlinedTextField(
-                        value = uiState.email,
-                        onValueChange = { viewModel.onEmailChange(it) },
-                        label = { Text(stringResource(R.string.email)) },
-                        leadingIcon = { Icon(Icons.Default.Email, null, tint = colorScheme.primary) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = if (uiState.emailError != null) colorScheme.error else colorScheme.primary,
-                            unfocusedBorderColor = if (uiState.emailError != null) colorScheme.error else colorScheme.outline,
-                            unfocusedContainerColor = colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                            focusedContainerColor = colorScheme.surface
-                        ),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
-                        keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
-                        singleLine = true,
-                        isError = uiState.emailError != null,
-                        supportingText = if (uiState.emailError != null) {
-                            {
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = uiState.email,
+                            onValueChange = { viewModel.onEmailChange(it) },
+                            label = { Text(stringResource(R.string.login_field_label)) },
+                            leadingIcon = { Icon(Icons.Default.Email, null, tint = colorScheme.primary) },
+                            trailingIcon = {
+                                IconButton(onClick = { showLoginHint = !showLoginHint }) {
+                                    Icon(
+                                        Icons.Default.Info,
+                                        contentDescription = stringResource(R.string.login_hint_toggle),
+                                        tint = colorScheme.primary
+                                    )
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = if (uiState.emailError != null) colorScheme.error else colorScheme.primary,
+                                unfocusedBorderColor = if (uiState.emailError != null) colorScheme.error else colorScheme.outline,
+                                unfocusedContainerColor = colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                                focusedContainerColor = colorScheme.surface
+                            ),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
+                            keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
+                            singleLine = true,
+                            isError = uiState.emailError != null,
+                            supportingText = if (uiState.emailError != null) {
+                                {
+                                    Text(
+                                        text = when (uiState.emailError) {
+                                            EmailValidationError.EMPTY -> stringResource(R.string.error_email_empty)
+                                            EmailValidationError.INVALID_FORMAT -> stringResource(R.string.error_email_invalid)
+                                            else -> ""
+                                        },
+                                        color = colorScheme.error
+                                    )
+                                }
+                            } else null
+                        )
+
+                        if (showLoginHint) {
+                            Surface(
+                                modifier = Modifier.align(Alignment.TopEnd).padding(end = 8.dp, top = 4.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                color = colorScheme.secondaryContainer,
+                                shadowElevation = 4.dp
+                            ) {
                                 Text(
-                                    text = when (uiState.emailError) {
-                                        EmailValidationError.EMPTY -> stringResource(R.string.error_email_empty)
-                                        EmailValidationError.INVALID_FORMAT -> stringResource(R.string.error_email_invalid)
-                                        else -> ""
-                                    },
-                                    color = colorScheme.error
+                                    text = stringResource(R.string.login_hint_text),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
                                 )
                             }
-                        } else null
-                    )
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(8.dp))
 
