@@ -77,6 +77,14 @@ data class ResetWithCodeRq(val email: String, val code: String, val newPassword:
 data class ResetWithCodeRs(val success: Boolean, val message: String? = null)
 
 @Serializable
+data class MailConfigRs(
+    val brevoConfigured: Boolean,
+    val smtpHost: String,
+    val smtpUserSet: Boolean,
+    val willUse: String
+)
+
+@Serializable
 data class TestEmailRs(val success: Boolean, val error: String? = null)
 
 fun Route.authRoutes() {
@@ -186,11 +194,11 @@ fun Route.authRoutes() {
             val brevoSet = System.getenv("BREVO_API_KEY")?.isNotBlank() == true
             val smtpUser = System.getenv("SMTP_USER") ?: ""
             val smtpHost = System.getenv("SMTP_HOST") ?: "not set"
-            call.respond(mapOf(
-                "brevo_configured" to brevoSet,
-                "smtp_host" to smtpHost,
-                "smtp_user_set" to smtpUser.isNotBlank(),
-                "will_use" to when {
+            call.respond(MailConfigRs(
+                brevoConfigured = brevoSet,
+                smtpHost = smtpHost,
+                smtpUserSet = smtpUser.isNotBlank(),
+                willUse = when {
                     brevoSet -> "BREVO_API"
                     smtpUser.isNotBlank() -> "SMTP"
                     else -> "NONE"
