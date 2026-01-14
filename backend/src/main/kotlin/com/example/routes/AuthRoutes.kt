@@ -167,6 +167,21 @@ fun Route.authRoutes() {
             }
         }
         
+        // Тест отправки email - синхронный, возвращает ошибку
+        post("/test-email") {
+            val rq = call.receive<RequestCodeRq>()
+            val error = mail.sendSync(
+                rq.email.trim(),
+                "Тест RMP App",
+                "<h1>Тестовое письмо</h1><p>Если вы видите это - почта работает!</p>"
+            )
+            if (error == null) {
+                call.respond(HttpStatusCode.OK, mapOf("success" to true, "message" to "Email sent"))
+            } else {
+                call.respond(HttpStatusCode.OK, mapOf("success" to false, "error" to error))
+            }
+        }
+        
         // ============ Мобильное приложение - сброс через 6-значный код ============
         
         // Запрос кода на email

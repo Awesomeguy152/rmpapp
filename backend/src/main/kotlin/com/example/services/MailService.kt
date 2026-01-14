@@ -125,9 +125,14 @@ class MailService(private val app: Application) {
     private fun sendViaSMTP(to: String, subject: String, html: String) {
         app.log.info("📧 SMTP: Connecting to $host:$port (SSL=$useSsl, STARTTLS=$startTls)")
         app.log.info("📧 SMTP: From=$from ($fromName), User=$username")
+        
+        // Яндекс требует чтобы From совпадал с User
+        val actualFrom = if (from.isBlank() || from == "noreply@rmpapp.ru") username else from
+        app.log.info("📧 SMTP: Actual From=$actualFrom")
+        
         try {
             val message = MimeMessage(session())
-            message.setFrom(InternetAddress(from, fromName, "UTF-8"))
+            message.setFrom(InternetAddress(actualFrom, fromName, "UTF-8"))
             message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(to))
             message.setSubject(subject, "UTF-8")
             message.setContent(html, "text/html; charset=UTF-8")
@@ -136,6 +141,7 @@ class MailService(private val app: Application) {
             app.log.info("✅ SMTP: sent email to=$to")
         } catch (e: Exception) {
             app.log.error("❌ SMTP send failed: ${e.javaClass.simpleName}: ${e.message}")
+            e.printStackTrace()
             throw e
         }
     }
@@ -149,6 +155,31 @@ class MailService(private val app: Application) {
     fun sendPasswordResetCode(to: String, code: String) {
         val html = buildResetCodeEmailHtml(code)
         send(to, "Код сброса пароля - RMP App", html)
+    }
+    
+    /**
+     * Синхронная отправка для тестирования - возвращает ошибку если есть
+     */
+    fun sendSync(to: String, subject: String, html: String): String? {
+        app.log.info("📧 [SYNC] Attempting to send email to: $to")
+        app.log.info("📧 [SYNC] SMTP config: host=$host, port=$port, user=$username, from=$from")
+        
+        return try {
+            when {
+                brevoApiKey.isNotBlank() -> {
+                    sendViaBrevo(to, subject, html)
+                    null
+                }
+                username.isNotBlank() -> {
+                    sendViaSMTP(to, subject, html)
+                    null
+                }
+                else -> "No email provider configured"
+            }
+        } catch (e: Exception) {
+            app.log.error("❌ [SYNC] Email error: ${e.javaClass.simpleName}: ${e.message}")
+            "${e.javaClass.simpleName}: ${e.message}"
+        }
     }
 
     private fun buildResetEmailHtml(resetLink: String): String = """
