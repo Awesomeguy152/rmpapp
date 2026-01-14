@@ -58,6 +58,24 @@ data class DirectResetRq(
     val newPassword: String
 )
 
+@Serializable
+data class RequestCodeRq(val email: String)
+
+@Serializable
+data class RequestCodeRs(val sent: Boolean, val message: String? = null)
+
+@Serializable
+data class VerifyCodeRq(val email: String, val code: String)
+
+@Serializable
+data class VerifyCodeRs(val valid: Boolean)
+
+@Serializable
+data class ResetWithCodeRq(val email: String, val code: String, val newPassword: String)
+
+@Serializable
+data class ResetWithCodeRs(val success: Boolean, val message: String? = null)
+
 fun Route.authRoutes() {
     val service = UserService()
     val users = service
@@ -146,6 +164,42 @@ fun Route.authRoutes() {
                 call.respond(HttpStatusCode.OK, ResetRs("password_updated"))
             } else {
                 call.respond(HttpStatusCode.NotFound, ErrorRs("user_not_found"))
+            }
+        }
+        
+        // ============ Мобильное приложение - сброс через 6-значный код ============
+        
+        // Запрос кода на email
+        post("/request-code") {
+            val rq = call.receive<RequestCodeRq>()
+            val sent = try {
+                reset.requestResetWithCode(rq.email.trim().lowercase())
+            } catch (e: Exception) {
+                call.application.log.error("Failed to send reset code: ${e.message}")
+                false
+            }
+            // Всегда возвращаем успех для безопасности (не раскрываем существует ли email)
+            call.respond(HttpStatusCode.OK, RequestCodeRs(
+                sent = true,
+                message = if (sent) "Код отправлен на указанную почту" else "Если аккаунт существует, код будет отправлен"
+            ))
+        }
+        
+        // Проверка кода
+        post("/verify-code") {
+            val rq = call.receive<VerifyCodeRq>()
+            val valid = reset.verifyCode(rq.email.trim().lowercase(), rq.code)
+            call.respond(HttpStatusCode.OK, VerifyCodeRs(valid = valid))
+        }
+        
+        // Сброс пароля с кодом
+        post("/reset-with-code") {
+            val rq = call.receive<ResetWithCodeRq>()
+            val ok = reset.resetPassword(rq.email.trim().lowercase(), rq.code, rq.newPassword)
+            if (ok) {
+                call.respond(HttpStatusCode.OK, ResetWithCodeRs(success = true, message = "Пароль успешно изменён"))
+            } else {
+                call.respond(HttpStatusCode.BadRequest, ResetWithCodeRs(success = false, message = "Неверный или просроченный код"))
             }
         }
     }

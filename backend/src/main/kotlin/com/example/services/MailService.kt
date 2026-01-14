@@ -109,6 +109,14 @@ class MailService(private val app: Application) {
         val html = buildResetEmailHtml(resetLink)
         send(to, "Password reset", html)
     }
+    
+    /**
+     * Отправить 6-значный код для сброса пароля (для мобильного приложения)
+     */
+    fun sendPasswordResetCode(to: String, code: String) {
+        val html = buildResetCodeEmailHtml(code)
+        send(to, "Код сброса пароля - RMP App", html)
+    }
 
     private fun buildResetLink(base: String, email: String, token: String): String {
         val encodedEmail = URLEncoder.encode(email, StandardCharsets.UTF_8)
@@ -129,8 +137,19 @@ class MailService(private val app: Application) {
             </div>
         </div>
     """.trimIndent()
+    
+    private fun buildResetCodeEmailHtml(code: String): String = """
+        <div style="font-family: Arial, sans-serif; background:#f7f7f7; padding:24px;">
+            <div style="max-width:480px; margin:0 auto; background:#ffffff; border:1px solid #e5e5e5; padding:24px;">
+                <h2 style="color:#333333; margin-top:0;">Сброс пароля</h2>
+                <p style="color:#555555; line-height:1.5;">Вы запросили сброс пароля для вашего аккаунта в RMP App.</p>
+                <p style="color:#555555; line-height:1.5;">Ваш код подтверждения:</p>
+                <p style="text-align:center; margin:24px 0;">
+                    <span style="display:inline-block; padding:16px 32px; background:#2563eb; color:#ffffff; font-size:32px; font-weight:bold; letter-spacing:8px; border-radius:8px;">$code</span>
+                </p>
+                <p style="color:#777777; font-size:12px; line-height:1.4;">Код действителен в течение 15 минут.</p>
+                <p style="color:#777777; font-size:12px; line-height:1.4;">Если вы не запрашивали сброс пароля, просто проигнорируйте это письмо.</p>
+            </div>
+        </div>
+    """.trimIndent()
 }
-
-// val mail = MailService(this)
-// mail.send("user@example.com", "Hello", "<b>Hi!</b>")
-// mail.sendPasswordReset("user@example.com", token)

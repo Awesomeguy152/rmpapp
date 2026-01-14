@@ -1,9 +1,13 @@
 package com.nano.min.screens
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -16,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Pin
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
@@ -85,7 +90,13 @@ fun ForgotPasswordScreen(
                 horizontalArrangement = Arrangement.Start
             ) {
                 IconButton(
-                    onClick = navigateBack,
+                    onClick = {
+                        if (uiState.currentStep != com.nano.min.viewmodel.ResetStep.EMAIL) {
+                            viewModel.goBack()
+                        } else {
+                            navigateBack()
+                        }
+                    },
                     enabled = !uiState.isLoading
                 ) {
                     Icon(
@@ -124,13 +135,46 @@ fun ForgotPasswordScreen(
                 color = colorScheme.onBackground
             )
 
+    // Step indicator
             Text(
-                text = "Введите email и новый пароль",
+                text = when (uiState.currentStep) {
+                    com.nano.min.viewmodel.ResetStep.EMAIL -> "Шаг 1: Введите email"
+                    com.nano.min.viewmodel.ResetStep.CODE -> "Шаг 2: Введите код из письма"
+                    com.nano.min.viewmodel.ResetStep.PASSWORD -> "Шаг 3: Новый пароль"
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = colorScheme.onBackground.copy(alpha = 0.7f),
                 modifier = Modifier.padding(top = 8.dp),
                 textAlign = TextAlign.Center
             )
+            
+            // Progress indicator
+            val stepNumber = when (uiState.currentStep) {
+                com.nano.min.viewmodel.ResetStep.EMAIL -> 1
+                com.nano.min.viewmodel.ResetStep.CODE -> 2
+                com.nano.min.viewmodel.ResetStep.PASSWORD -> 3
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                repeat(3) { index ->
+                    Box(
+                        modifier = Modifier
+                            .size(if (index + 1 == stepNumber) 12.dp else 8.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (index + 1 <= stepNumber) colorScheme.primary
+                                else colorScheme.onBackground.copy(alpha = 0.3f)
+                            )
+                    )
+                    if (index < 2) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(32.dp))
 
@@ -171,136 +215,47 @@ fun ForgotPasswordScreen(
                         }
                     }
 
-                    // Email field
-                    OutlinedTextField(
-                        value = uiState.email,
-                        onValueChange = viewModel::onEmailChange,
-                        label = { Text(stringResource(R.string.email)) },
-                        leadingIcon = { 
-                            Icon(Icons.Default.Email, null, tint = colorScheme.primary) 
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = colorScheme.primary,
-                            unfocusedContainerColor = colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                            focusedContainerColor = colorScheme.surface
-                        ),
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Email, 
-                            imeAction = ImeAction.Next
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onNext = { focusManager.moveFocus(FocusDirection.Down) }
-                        ),
-                        singleLine = true,
-                        enabled = !uiState.isLoading
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // New password field
-                    OutlinedTextField(
-                        value = uiState.newPassword,
-                        onValueChange = viewModel::onNewPasswordChange,
-                        label = { Text(stringResource(R.string.new_password)) },
-                        leadingIcon = { 
-                            Icon(Icons.Default.Lock, null, tint = colorScheme.primary) 
-                        },
-                        trailingIcon = {
-                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                Icon(
-                                    if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                    contentDescription = null,
-                                    tint = colorScheme.onSurfaceVariant
-                                )
+                    AnimatedContent(
+                        targetState = uiState.currentStep,
+                        transitionSpec = {
+                            if (targetState.ordinal > initialState.ordinal) {
+                                slideInHorizontally { it } togetherWith slideOutHorizontally { -it }
+                            } else {
+                                slideInHorizontally { -it } togetherWith slideOutHorizontally { it }
                             }
                         },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = colorScheme.primary,
-                            unfocusedContainerColor = colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                            focusedContainerColor = colorScheme.surface
-                        ),
-                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Password, 
-                            imeAction = ImeAction.Next
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onNext = { focusManager.moveFocus(FocusDirection.Down) }
-                        ),
-                        singleLine = true,
-                        enabled = !uiState.isLoading
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Confirm password field
-                    OutlinedTextField(
-                        value = uiState.confirmPassword,
-                        onValueChange = viewModel::onConfirmPasswordChange,
-                        label = { Text(stringResource(R.string.confirm_password)) },
-                        leadingIcon = { 
-                            Icon(Icons.Default.Lock, null, tint = colorScheme.primary) 
-                        },
-                        trailingIcon = {
-                            IconButton(onClick = { confirmPasswordVisible = !confirmPasswordVisible }) {
-                                Icon(
-                                    if (confirmPasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                    contentDescription = null,
-                                    tint = colorScheme.onSurfaceVariant
-                                )
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = colorScheme.primary,
-                            unfocusedContainerColor = colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                            focusedContainerColor = colorScheme.surface
-                        ),
-                        visualTransformation = if (confirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Password, 
-                            imeAction = ImeAction.Done
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onDone = {
-                                focusManager.clearFocus()
-                                viewModel.resetPassword()
-                            }
-                        ),
-                        singleLine = true,
-                        enabled = !uiState.isLoading
-                    )
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    Button(
-                        onClick = { viewModel.resetPassword() },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        enabled = !uiState.isLoading && 
-                            uiState.email.isNotBlank() && 
-                            uiState.newPassword.isNotBlank() && 
-                            uiState.confirmPassword.isNotBlank(),
-                        colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary)
-                    ) {
-                        if (uiState.isLoading) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp),
-                                color = colorScheme.onPrimary,
-                                strokeWidth = 2.dp
+                        label = "step_animation"
+                    ) { step ->
+                        when (step) {
+                            com.nano.min.viewmodel.ResetStep.EMAIL -> Step1EmailInput(
+                                email = uiState.email,
+                                onEmailChange = viewModel::onEmailChange,
+                                isLoading = uiState.isLoading,
+                                onRequestCode = { viewModel.requestCode() },
+                                focusManager = focusManager,
+                                colorScheme = colorScheme
                             )
-                        } else {
-                            Text(
-                                text = stringResource(R.string.reset_password),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
+                            com.nano.min.viewmodel.ResetStep.CODE -> Step2CodeInput(
+                                code = uiState.code,
+                                onCodeChange = viewModel::onCodeChange,
+                                isLoading = uiState.isLoading,
+                                onVerifyCode = { viewModel.verifyCode() },
+                                focusManager = focusManager,
+                                colorScheme = colorScheme
+                            )
+                            com.nano.min.viewmodel.ResetStep.PASSWORD -> Step3NewPassword(
+                                newPassword = uiState.newPassword,
+                                confirmPassword = uiState.confirmPassword,
+                                onNewPasswordChange = viewModel::onNewPasswordChange,
+                                onConfirmPasswordChange = viewModel::onConfirmPasswordChange,
+                                passwordVisible = passwordVisible,
+                                confirmPasswordVisible = confirmPasswordVisible,
+                                onPasswordVisibleChange = { passwordVisible = it },
+                                onConfirmPasswordVisibleChange = { confirmPasswordVisible = it },
+                                isLoading = uiState.isLoading,
+                                onSetNewPassword = { viewModel.resetPassword() },
+                                focusManager = focusManager,
+                                colorScheme = colorScheme
                             )
                         }
                     }
@@ -316,6 +271,291 @@ fun ForgotPasswordScreen(
                 Text(
                     text = stringResource(R.string.back_to_login),
                     color = colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun Step1EmailInput(
+    email: String,
+    onEmailChange: (String) -> Unit,
+    isLoading: Boolean,
+    onRequestCode: () -> Unit,
+    focusManager: androidx.compose.ui.focus.FocusManager,
+    colorScheme: ColorScheme
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "Введите email, на который зарегистрирован аккаунт. Мы отправим код подтверждения.",
+            style = MaterialTheme.typography.bodySmall,
+            color = colorScheme.onSurface.copy(alpha = 0.7f),
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+        
+        OutlinedTextField(
+            value = email,
+            onValueChange = onEmailChange,
+            label = { Text("Email") },
+            leadingIcon = { 
+                Icon(Icons.Default.Email, null, tint = colorScheme.primary) 
+            },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = colorScheme.primary,
+                unfocusedContainerColor = colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                focusedContainerColor = colorScheme.surface
+            ),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Email, 
+                imeAction = ImeAction.Done
+            ),
+            keyboardActions = KeyboardActions(
+                onDone = {
+                    focusManager.clearFocus()
+                    onRequestCode()
+                }
+            ),
+            singleLine = true,
+            enabled = !isLoading
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Button(
+            onClick = onRequestCode,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            shape = RoundedCornerShape(16.dp),
+            enabled = !isLoading && email.isNotBlank(),
+            colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary)
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    color = colorScheme.onPrimary,
+                    strokeWidth = 2.dp
+                )
+            } else {
+                Text(
+                    text = "Получить код",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun Step2CodeInput(
+    code: String,
+    onCodeChange: (String) -> Unit,
+    isLoading: Boolean,
+    onVerifyCode: () -> Unit,
+    focusManager: androidx.compose.ui.focus.FocusManager,
+    colorScheme: ColorScheme
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "Мы отправили 6-значный код на вашу почту. Код действителен 15 минут.",
+            style = MaterialTheme.typography.bodySmall,
+            color = colorScheme.onSurface.copy(alpha = 0.7f),
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+        
+        OutlinedTextField(
+            value = code,
+            onValueChange = { if (it.length <= 6 && it.all { c -> c.isDigit() }) onCodeChange(it) },
+            label = { Text("Код подтверждения") },
+            leadingIcon = { 
+                Icon(Icons.Default.Pin, null, tint = colorScheme.primary) 
+            },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = colorScheme.primary,
+                unfocusedContainerColor = colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                focusedContainerColor = colorScheme.surface
+            ),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Number, 
+                imeAction = ImeAction.Done
+            ),
+            keyboardActions = KeyboardActions(
+                onDone = {
+                    focusManager.clearFocus()
+                    onVerifyCode()
+                }
+            ),
+            singleLine = true,
+            enabled = !isLoading,
+            placeholder = { Text("123456") }
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Button(
+            onClick = onVerifyCode,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            shape = RoundedCornerShape(16.dp),
+            enabled = !isLoading && code.length == 6,
+            colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary)
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    color = colorScheme.onPrimary,
+                    strokeWidth = 2.dp
+                )
+            } else {
+                Text(
+                    text = "Подтвердить",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun Step3NewPassword(
+    newPassword: String,
+    confirmPassword: String,
+    onNewPasswordChange: (String) -> Unit,
+    onConfirmPasswordChange: (String) -> Unit,
+    passwordVisible: Boolean,
+    confirmPasswordVisible: Boolean,
+    onPasswordVisibleChange: (Boolean) -> Unit,
+    onConfirmPasswordVisibleChange: (Boolean) -> Unit,
+    isLoading: Boolean,
+    onSetNewPassword: () -> Unit,
+    focusManager: androidx.compose.ui.focus.FocusManager,
+    colorScheme: ColorScheme
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "Код подтвержден! Теперь введите новый пароль (минимум 8 символов).",
+            style = MaterialTheme.typography.bodySmall,
+            color = colorScheme.onSurface.copy(alpha = 0.7f),
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+        
+        OutlinedTextField(
+            value = newPassword,
+            onValueChange = onNewPasswordChange,
+            label = { Text("Новый пароль") },
+            leadingIcon = { 
+                Icon(Icons.Default.Lock, null, tint = colorScheme.primary) 
+            },
+            trailingIcon = {
+                IconButton(onClick = { onPasswordVisibleChange(!passwordVisible) }) {
+                    Icon(
+                        if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                        contentDescription = null,
+                        tint = colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = colorScheme.primary,
+                unfocusedContainerColor = colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                focusedContainerColor = colorScheme.surface
+            ),
+            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Password, 
+                imeAction = ImeAction.Next
+            ),
+            keyboardActions = KeyboardActions(
+                onNext = { focusManager.moveFocus(FocusDirection.Down) }
+            ),
+            singleLine = true,
+            enabled = !isLoading
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        OutlinedTextField(
+            value = confirmPassword,
+            onValueChange = onConfirmPasswordChange,
+            label = { Text("Подтвердите пароль") },
+            leadingIcon = { 
+                Icon(Icons.Default.Lock, null, tint = colorScheme.primary) 
+            },
+            trailingIcon = {
+                IconButton(onClick = { onConfirmPasswordVisibleChange(!confirmPasswordVisible) }) {
+                    Icon(
+                        if (confirmPasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                        contentDescription = null,
+                        tint = colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = colorScheme.primary,
+                unfocusedContainerColor = colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                focusedContainerColor = colorScheme.surface
+            ),
+            visualTransformation = if (confirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Password, 
+                imeAction = ImeAction.Done
+            ),
+            keyboardActions = KeyboardActions(
+                onDone = {
+                    focusManager.clearFocus()
+                    onSetNewPassword()
+                }
+            ),
+            singleLine = true,
+            enabled = !isLoading
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Button(
+            onClick = onSetNewPassword,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            shape = RoundedCornerShape(16.dp),
+            enabled = !isLoading && newPassword.isNotBlank() && confirmPassword.isNotBlank(),
+            colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary)
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    color = colorScheme.onPrimary,
+                    strokeWidth = 2.dp
+                )
+            } else {
+                Text(
+                    text = "Сменить пароль",
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
             }
