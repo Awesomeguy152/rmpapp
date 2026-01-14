@@ -8,6 +8,7 @@ import com.example.schema.UserProfileDTO
 import com.example.schema.UserTable
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.stringParam
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.util.UUID
