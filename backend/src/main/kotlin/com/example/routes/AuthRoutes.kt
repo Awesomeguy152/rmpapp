@@ -76,6 +76,9 @@ data class ResetWithCodeRq(val email: String, val code: String, val newPassword:
 @Serializable
 data class ResetWithCodeRs(val success: Boolean, val message: String? = null)
 
+@Serializable
+data class TestEmailRs(val success: Boolean, val error: String? = null)
+
 fun Route.authRoutes() {
     val service = UserService()
     val users = service
@@ -175,11 +178,7 @@ fun Route.authRoutes() {
                 "Тест RMP App",
                 "<h1>Тестовое письмо</h1><p>Если вы видите это - почта работает!</p>"
             )
-            if (error == null) {
-                call.respond(HttpStatusCode.OK, mapOf("success" to true, "message" to "Email sent"))
-            } else {
-                call.respond(HttpStatusCode.OK, mapOf("success" to false, "error" to error))
-            }
+            call.respond(HttpStatusCode.OK, TestEmailRs(success = error == null, error = error))
         }
         
         // ============ Мобильное приложение - сброс через 6-значный код ============
