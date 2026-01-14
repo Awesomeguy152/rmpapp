@@ -85,7 +85,7 @@ class UserService {
 
     /** Удалить пользователя */
     fun deleteUser(userId: UUID): Boolean = transaction {
-        val deleted = UserTable.deleteWhere { id eq EntityID(userId, UserTable) }
+        val deleted = UserTable.deleteWhere { UserTable.id eq userId }
         deleted > 0
     }
 
