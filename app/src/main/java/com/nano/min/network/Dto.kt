@@ -45,6 +45,17 @@ data class UpdateProfileRq(
 data class ErrorResponse(val error: String? = null)
 
 @Serializable
+data class AdminUserDto(
+    val id: String,
+    val email: String,
+    val role: String,
+    val createdAt: String,
+    val username: String? = null,
+    val displayName: String? = null,
+    val blocked: Boolean = false
+)
+
+@Serializable
 data class UserProfileDto(
     val id: String,
     val email: String,

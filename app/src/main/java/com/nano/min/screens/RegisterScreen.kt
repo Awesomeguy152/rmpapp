@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,15 +23,20 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -235,11 +241,8 @@ fun RegisterScreen(
                             focusedContainerColor = colorScheme.surface
                         ),
                         visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
-                        keyboardActions = KeyboardActions(onDone = {
-                            focusManager.clearFocus()
-                            viewModel.register()
-                        }),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next),
+                        keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
                         singleLine = true,
                         isError = uiState.passwordError != null,
                         supportingText = if (uiState.passwordError != null) {
@@ -256,13 +259,99 @@ fun RegisterScreen(
                         } else null
                     )
 
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // Выбор роли
+                    Text(
+                        text = stringResource(R.string.select_role),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = colorScheme.onSurface,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        FilterChip(
+                            selected = uiState.selectedRole == "USER",
+                            onClick = { viewModel.onRoleChange("USER") },
+                            label = { Text(stringResource(R.string.role_user)) },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.Person,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = colorScheme.primaryContainer,
+                                selectedLabelColor = colorScheme.onPrimaryContainer
+                            ),
+                            modifier = Modifier.weight(1f)
+                        )
+                        FilterChip(
+                            selected = uiState.selectedRole == "ADMIN",
+                            onClick = { viewModel.onRoleChange("ADMIN") },
+                            label = { Text(stringResource(R.string.role_admin)) },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.AdminPanelSettings,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = colorScheme.tertiaryContainer,
+                                selectedLabelColor = colorScheme.onTertiaryContainer
+                            ),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    
+                    // Поле для кода админа
+                    AnimatedVisibility(visible = uiState.selectedRole == "ADMIN") {
+                        Column {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            OutlinedTextField(
+                                value = uiState.adminCode,
+                                onValueChange = { viewModel.onAdminCodeChange(it) },
+                                label = { Text(stringResource(R.string.admin_code)) },
+                                leadingIcon = { Icon(Icons.Default.VpnKey, null, tint = colorScheme.tertiary) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = if (uiState.adminCodeError) colorScheme.error else colorScheme.tertiary,
+                                    unfocusedBorderColor = if (uiState.adminCodeError) colorScheme.error else colorScheme.outline,
+                                    unfocusedContainerColor = colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                                    focusedContainerColor = colorScheme.surface
+                                ),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                                keyboardActions = KeyboardActions(onDone = {
+                                    focusManager.clearFocus()
+                                    viewModel.register()
+                                }),
+                                singleLine = true,
+                                isError = uiState.adminCodeError,
+                                supportingText = if (uiState.adminCodeError) {
+                                    { Text(stringResource(R.string.error_admin_code_invalid), color = colorScheme.error) }
+                                } else {
+                                    { Text(stringResource(R.string.admin_code_hint), color = colorScheme.onSurfaceVariant) }
+                                }
+                            )
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(24.dp))
 
                     Button(
                         onClick = { viewModel.register() },
                         modifier = Modifier.fillMaxWidth().height(56.dp),
                         shape = RoundedCornerShape(16.dp),
-                        enabled = !uiState.isLoading && uiState.email.isNotBlank() && uiState.password.isNotBlank(),
+                        enabled = !uiState.isLoading && uiState.email.isNotBlank() && uiState.password.isNotBlank() &&
+                                (uiState.selectedRole == "USER" || uiState.adminCode.isNotBlank()),
                         colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary)
                     ) {
                         if (uiState.isLoading) {

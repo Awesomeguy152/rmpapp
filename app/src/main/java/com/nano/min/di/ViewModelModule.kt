@@ -1,5 +1,6 @@
 package com.nano.min.di
 
+import com.nano.min.viewmodel.AdminPanelViewModel
 import com.nano.min.viewmodel.ChatsViewModel
 import com.nano.min.viewmodel.ForgotPasswordViewModel
 import com.nano.min.viewmodel.LoginViewModel
@@ -16,4 +17,5 @@ val viewModelModule = module {
     viewModelOf(::ChatsViewModel)
     viewModelOf(::ProfileViewModel)
     viewModelOf(::MeetingsViewModel)
+    viewModelOf(::AdminPanelViewModel)
 }

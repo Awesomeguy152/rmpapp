@@ -18,6 +18,7 @@ import com.nano.min.screens.AppRootScreen
 import com.nano.min.screens.ProfileScreen
 import com.nano.min.screens.EditProfileScreen
 import com.nano.min.screens.MeetingsScreen
+import com.nano.min.screens.AdminPanelScreen
 import com.nano.min.viewmodel.MeetingsViewModel
 import org.koin.compose.koinInject
 
@@ -110,7 +111,8 @@ fun AppNavigationRoot(
         is ProfileScreenRoute -> {
             ProfileScreen(
                 onLogout = { navigateToLogin() },
-                onEditProfile = { pushRoute(EditProfileScreenRoute) }
+                onEditProfile = { pushRoute(EditProfileScreenRoute) },
+                onAdminPanel = { pushRoute(AdminPanelScreenRoute) }
             )
         }
         is EditProfileScreenRoute -> {
@@ -121,6 +123,11 @@ fun AppNavigationRoot(
         }
         is MeetingsScreenRoute -> {
             MeetingsScreen(
+                onNavigateBack = { popRoute() }
+            )
+        }
+        is AdminPanelScreenRoute -> {
+            AdminPanelScreen(
                 onNavigateBack = { popRoute() }
             )
         }

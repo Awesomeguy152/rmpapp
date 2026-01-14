@@ -58,3 +58,8 @@ data object MeetingsScreenRoute : Route {
     override val title = R.string.screen_meetings
     override val icon = Icons.Sharp.CalendarMonth
 }
+
+data object AdminPanelScreenRoute : Route {
+    override val title = R.string.admin_panel
+    override val icon = Icons.AutoMirrored.Sharp.Chat
+}

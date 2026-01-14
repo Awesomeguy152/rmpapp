@@ -16,6 +16,7 @@ object UserTable : UUIDTable("users") {
     val displayName = varchar("display_name", 100).nullable()
     val bio = text("bio").nullable()
     val avatarUrl = varchar("avatar_url", 512).nullable()
+    val blocked = bool("blocked").default(false)
     val createdAt = timestamp("created_at").defaultExpression(CurrentTimestamp())
 }
 
@@ -36,6 +37,17 @@ data class UserProfileDTO(
     val displayName: String? = null,
     val bio: String? = null,
     val avatarUrl: String? = null
+)
+
+@Serializable
+data class AdminUserDTO(
+    val id: String,
+    val email: String,
+    val role: String,
+    val createdAt: String,
+    val username: String? = null,
+    val displayName: String? = null,
+    val blocked: Boolean = false
 )
 
 @Serializable

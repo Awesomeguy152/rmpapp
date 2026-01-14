@@ -1,6 +1,7 @@
 package com.example.services
 
 import at.favre.lib.crypto.bcrypt.BCrypt
+import com.example.schema.AdminUserDTO
 import com.example.schema.Role
 import com.example.schema.UserDTO
 import com.example.schema.UserProfileDTO
@@ -47,6 +48,53 @@ class UserService {
                 row[UserTable.email],
                 Role.valueOf(row[UserTable.role]))
         }
+    }
+
+    /** Список пользователей для админ-панели */
+    fun listForAdmin(): List<AdminUserDTO> = transaction {
+        UserTable.selectAll()
+            .orderBy(UserTable.createdAt, SortOrder.DESC)
+            .map { row ->
+                AdminUserDTO(
+                    id = row[UserTable.id].value.toString(),
+                    email = row[UserTable.email],
+                    role = row[UserTable.role],
+                    createdAt = row[UserTable.createdAt].toString(),
+                    username = row[UserTable.username],
+                    displayName = row[UserTable.displayName],
+                    blocked = row[UserTable.blocked]
+                )
+            }
+    }
+
+    /** Установить статус блокировки пользователя */
+    fun setBlocked(userId: UUID, blocked: Boolean): Boolean = transaction {
+        val updated = UserTable.update({ UserTable.id eq EntityID(userId, UserTable) }) {
+            it[UserTable.blocked] = blocked
+        }
+        updated > 0
+    }
+
+    /** Изменить роль пользователя */
+    fun setRole(userId: UUID, role: Role): Boolean = transaction {
+        val updated = UserTable.update({ UserTable.id eq EntityID(userId, UserTable) }) {
+            it[UserTable.role] = role.name
+        }
+        updated > 0
+    }
+
+    /** Удалить пользователя */
+    fun deleteUser(userId: UUID): Boolean = transaction {
+        val deleted = UserTable.deleteWhere { UserTable.id eq EntityID(userId, UserTable) }
+        deleted > 0
+    }
+
+    /** Проверить, заблокирован ли пользователь */
+    fun isBlocked(userId: UUID): Boolean = transaction {
+        UserTable
+            .select { UserTable.id eq EntityID(userId, UserTable) }
+            .singleOrNull()
+            ?.get(UserTable.blocked) ?: false
     }
 
     fun findProfile(userId: UUID): UserProfileDTO? = transaction {

@@ -518,8 +518,7 @@ private fun ConversationListPanel(
 				)
 				Row(
 					verticalAlignment = Alignment.CenterVertically,
-					horizontalArrangement = Arrangement.spacedBy(8.dp),
-					modifier = Modifier.horizontalScroll(rememberScrollState())
+					horizontalArrangement = Arrangement.spacedBy(8.dp)
 				) {
 					AssistChip(
 						onClick = onCreateConversation,
@@ -554,26 +553,6 @@ private fun ConversationListPanel(
 							disabledLabelColor = colorScheme.onSurfaceVariant
 						)
 					)
-					AssistChip(
-						onClick = onToggleArchived,
-						label = { 
-							Text(
-								if (state.showArchivedChats) stringResource(R.string.active_chats) 
-								else stringResource(R.string.archived_chats)
-							)
-						},
-						leadingIcon = {
-							Icon(
-								imageVector = Icons.Filled.Archive,
-								contentDescription = null
-							)
-						},
-						colors = AssistChipDefaults.assistChipColors(
-							containerColor = if (state.showArchivedChats) colorScheme.tertiaryContainer else colorScheme.surfaceVariant.copy(alpha = 0.65f),
-							labelColor = if (state.showArchivedChats) colorScheme.onTertiaryContainer else colorScheme.onSurfaceVariant,
-							leadingIconContentColor = if (state.showArchivedChats) colorScheme.onTertiaryContainer else colorScheme.onSurfaceVariant
-						)
-					)
 				}
 				state.profileEmail?.let { email ->
 					Text(
@@ -582,7 +561,10 @@ private fun ConversationListPanel(
 						color = colorScheme.onSurfaceVariant
 					)
 				}
-				Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+				Row(
+					horizontalArrangement = Arrangement.spacedBy(12.dp),
+					verticalAlignment = Alignment.CenterVertically
+				) {
 					state.profileRole?.let { role ->
 						Text(
 							text = stringResource(R.string.profile_role_value, role),
@@ -597,6 +579,28 @@ private fun ConversationListPanel(
 							color = colorScheme.onSurfaceVariant
 						)
 					}
+					Spacer(modifier = Modifier.weight(1f))
+					AssistChip(
+						onClick = onToggleArchived,
+						label = { 
+							Text(
+								if (state.showArchivedChats) stringResource(R.string.active_chats) 
+								else stringResource(R.string.archived_chats)
+							)
+						},
+						leadingIcon = {
+							Icon(
+								imageVector = Icons.Filled.Archive,
+								contentDescription = null,
+								modifier = Modifier.size(18.dp)
+							)
+						},
+						colors = AssistChipDefaults.assistChipColors(
+							containerColor = if (state.showArchivedChats) colorScheme.tertiaryContainer else colorScheme.surfaceVariant.copy(alpha = 0.65f),
+							labelColor = if (state.showArchivedChats) colorScheme.onTertiaryContainer else colorScheme.onSurfaceVariant,
+							leadingIconContentColor = if (state.showArchivedChats) colorScheme.onTertiaryContainer else colorScheme.onSurfaceVariant
+						)
+					)
 				}
 			}
 		}

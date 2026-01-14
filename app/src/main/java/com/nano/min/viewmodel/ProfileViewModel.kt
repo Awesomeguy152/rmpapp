@@ -15,10 +15,13 @@ data class ProfileUiState(
     val email: String = "",
     val displayName: String = "",
     val bio: String = "",
+    val role: String = "USER",
     val isLoading: Boolean = false,
     val error: String? = null,
     val isEditing: Boolean = false
-)
+) {
+    val isAdmin: Boolean get() = role == "ADMIN"
+}
 
 sealed interface ProfileEvent {
     data object SaveSuccess : ProfileEvent
@@ -50,6 +53,7 @@ class ProfileViewModel(
                         email = me.email ?: "",
                         displayName = me.displayName ?: "",
                         bio = me.bio ?: "",
+                        role = me.role ?: "USER",
                         isLoading = false
                     )
                 } else {

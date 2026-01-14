@@ -16,9 +16,9 @@ data class RegisterDeviceTokenRequest(
 
 class AuthService(val client: ApiClient) {
 
-    suspend fun register(email: String, password: String, role: String = "USER"): Boolean =
+    suspend fun register(email: String, password: String, role: String = "USER", adminSecret: String? = null): Boolean =
         withContext(Dispatchers.IO) {
-            val req = RegisterRequest(email, password, role)
+            val req = RegisterRequest(email, password, role, adminSecret)
             val response: HttpResponse =
                 client.httpClient.post("${client.baseUrl}/api/auth/register") {
                     setBody(req)
@@ -189,6 +189,67 @@ class AuthService(val client: ApiClient) {
 
     fun logout() {
         client.tokenStorage.setToken(null)
+    }
+    
+    // ==================== ADMIN API ====================
+    
+    /**
+     * Получить список всех пользователей (только для админов)
+     */
+    suspend fun getAllUsers(): List<AdminUserDto>? = withContext(Dispatchers.IO) {
+        try {
+            val response: HttpResponse = client.httpClient.get("${client.baseUrl}/api/admin/users")
+            if (response.status == HttpStatusCode.OK) {
+                return@withContext response.body<List<AdminUserDto>>()
+            }
+            return@withContext null
+        } catch (e: Exception) {
+            android.util.Log.e("AuthService", "getAllUsers() exception: ${e.message}", e)
+            return@withContext null
+        }
+    }
+    
+    /**
+     * Заблокировать/разблокировать пользователя
+     */
+    suspend fun setUserBlocked(userId: String, blocked: Boolean): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val response: HttpResponse = client.httpClient.patch("${client.baseUrl}/api/admin/users/$userId/block") {
+                setBody(mapOf("blocked" to blocked))
+            }
+            response.status == HttpStatusCode.OK
+        } catch (e: Exception) {
+            android.util.Log.e("AuthService", "setUserBlocked() exception: ${e.message}", e)
+            false
+        }
+    }
+    
+    /**
+     * Изменить роль пользователя
+     */
+    suspend fun setUserRole(userId: String, role: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val response: HttpResponse = client.httpClient.patch("${client.baseUrl}/api/admin/users/$userId/role") {
+                setBody(mapOf("role" to role))
+            }
+            response.status == HttpStatusCode.OK
+        } catch (e: Exception) {
+            android.util.Log.e("AuthService", "setUserRole() exception: ${e.message}", e)
+            false
+        }
+    }
+    
+    /**
+     * Удалить пользователя
+     */
+    suspend fun deleteUser(userId: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val response: HttpResponse = client.httpClient.delete("${client.baseUrl}/api/admin/users/$userId")
+            response.status == HttpStatusCode.OK
+        } catch (e: Exception) {
+            android.util.Log.e("AuthService", "deleteUser() exception: ${e.message}", e)
+            false
+        }
     }
 }
 

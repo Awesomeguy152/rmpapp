@@ -26,6 +26,7 @@
     <string name="login_empty_fields">Введите почту и пароль</string>
     <string name="screen_settings">Настройки</string>
     <string name="login_failed">Неверный логин или пароль</string>
+    <string name="login_blocked">Ваш аккаунт заблокирован. Обратитесь к администратору.</string>
     <string name="register_empty_fields">Заполните все поля</string>
     <string name="register_failed">Не удалось зарегистрироваться. Попробуйте ещё раз.</string>
     <string name="register_auto_login_failed">Регистрация прошла, но автоматический вход не удался. Попробуйте войти вручную.</string>
@@ -35,6 +36,28 @@
     <string name="error_email_invalid">Некорректный формат email</string>
     <string name="error_password_empty">Введите пароль</string>
     <string name="error_password_short">Пароль должен быть не менее 8 символов</string>
+    <string name="error_admin_code_invalid">Неверный код администратора</string>
+    
+    <!-- Роли -->
+    <string name="select_role">Выберите роль</string>
+    <string name="role_user">Пользователь</string>
+    <string name="role_admin">Администратор</string>
+    <string name="admin_code">Код администратора</string>
+    <string name="admin_code_hint">Введите секретный код для доступа</string>
+    
+    <!-- Админ-панель -->
+    <string name="admin_panel">Админ-панель</string>
+    <string name="admin_users">Пользователи</string>
+    <string name="admin_users_count">Всего: %d</string>
+    <string name="admin_block_user">Заблокировать</string>
+    <string name="admin_unblock_user">Разблокировать</string>
+    <string name="admin_delete_user">Удалить пользователя</string>
+    <string name="admin_make_admin">Сделать админом</string>
+    <string name="admin_remove_admin">Снять админа</string>
+    <string name="admin_user_blocked">Пользователь заблокирован</string>
+    <string name="admin_user_unblocked">Пользователь разблокирован</string>
+    <string name="admin_user_deleted">Пользователь удалён</string>
+    <string name="admin_role_changed">Роль изменена</string>
     
     <string name="new_chat">Создать новый чат</string>
     <string name="menu">Открыть меню</string>

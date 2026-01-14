@@ -20,6 +20,9 @@ import kotlinx.serialization.json.Json
 data class RegisterUiState(
     val email: String = "",
     val password: String = "",
+    val selectedRole: String = "USER",
+    val adminCode: String = "",
+    val adminCodeError: Boolean = false,
     val isLoading: Boolean = false,
     val error: String? = null,
     val emailError: EmailValidationError? = null,
@@ -34,6 +37,10 @@ class RegisterViewModel(
 
     private val _uiState = MutableStateFlow(RegisterUiState())
     val uiState: StateFlow<RegisterUiState> = _uiState.asStateFlow()
+    
+    companion object {
+        private const val ADMIN_SECRET_CODE = "100100"
+    }
 
     fun onEmailChange(email: String) {
         _uiState.value = _uiState.value.copy(
@@ -51,10 +58,38 @@ class RegisterViewModel(
         )
     }
     
+    fun onRoleChange(role: String) {
+        _uiState.value = _uiState.value.copy(
+            selectedRole = role,
+            adminCode = "",
+            adminCodeError = false,
+            error = null
+        )
+    }
+    
+    fun onAdminCodeChange(code: String) {
+        _uiState.value = _uiState.value.copy(
+            adminCode = code,
+            adminCodeError = false,
+            error = null
+        )
+    }
+    
     private fun validateInput(): Boolean {
         val currentState = _uiState.value
         val emailError = ValidationUtils.getEmailError(currentState.email)
         val passwordError = ValidationUtils.getPasswordError(currentState.password)
+        
+        // Проверка кода админа
+        if (currentState.selectedRole == "ADMIN" && currentState.adminCode != ADMIN_SECRET_CODE) {
+            _uiState.value = currentState.copy(
+                emailError = emailError,
+                passwordError = passwordError,
+                adminCodeError = true,
+                error = getString(R.string.error_admin_code_invalid)
+            )
+            return false
+        }
         
         if (emailError != null || passwordError != null) {
             _uiState.value = currentState.copy(
@@ -70,11 +105,17 @@ class RegisterViewModel(
         if (!validateInput()) return
         
         val currentState = _uiState.value
+        val adminSecret = if (currentState.selectedRole == "ADMIN") currentState.adminCode else null
 
         viewModelScope.launch {
             _uiState.value = currentState.copy(isLoading = true, error = null)
             try {
-                val registered = authService.register(currentState.email.trim(), currentState.password)
+                val registered = authService.register(
+                    currentState.email.trim(), 
+                    currentState.password,
+                    currentState.selectedRole,
+                    adminSecret
+                )
                 
                 // Если регистрация не удалась - возможно пользователь уже существует, пробуем залогиниться
                 if (!registered) {

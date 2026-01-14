@@ -87,19 +87,12 @@ fun Route.authRoutes() {
             val rq = call.receive<RegisterRq>()
 
             if (rq.role == Role.ADMIN) {
-                val requiredSecret = System.getenv("ADMIN_REGISTRATION_SECRET")?.takeIf { it.isNotBlank() }
+                // Код по умолчанию "100100", можно переопределить через переменную окружения
+                val requiredSecret = System.getenv("ADMIN_REGISTRATION_SECRET")?.takeIf { it.isNotBlank() } ?: "100100"
 
-                when {
-                    requiredSecret == null -> {
-                        application.log.warn("Admin registration blocked: ADMIN_REGISTRATION_SECRET not configured")
-                        call.respond(HttpStatusCode.Forbidden, ErrorRs("admin_registration_disabled"))
-                        return@post
-                    }
-
-                    rq.adminSecret.isNullOrBlank() || rq.adminSecret != requiredSecret -> {
-                        call.respond(HttpStatusCode.Forbidden, ErrorRs("admin_secret_invalid"))
-                        return@post
-                    }
+                if (rq.adminSecret.isNullOrBlank() || rq.adminSecret != requiredSecret) {
+                    call.respond(HttpStatusCode.Forbidden, ErrorRs("admin_secret_invalid"))
+                    return@post
                 }
             }
 
@@ -113,6 +106,13 @@ fun Route.authRoutes() {
             if (dto == null) {
                 call.respond(HttpStatusCode.Unauthorized, ErrorRs("invalid credentials"))
             } else {
+                // Проверяем, не заблокирован ли пользователь
+                val userId = java.util.UUID.fromString(dto.id)
+                if (service.isBlocked(userId)) {
+                    call.respond(HttpStatusCode.Forbidden, ErrorRs("user_blocked"))
+                    return@post
+                }
+                
                 val token = JWT.create()
                     .withIssuer(JwtConfig.issuer)
                     .withAudience(JwtConfig.audience)
