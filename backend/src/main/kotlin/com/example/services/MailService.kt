@@ -19,24 +19,25 @@ import java.util.Properties
 import kotlinx.serialization.json.*
 
 class MailService(private val app: Application) {
-    // Brevo (Sendinblue) - 300 писем/день бесплатно
+    // Unisender - российский сервис (1500 писем/месяц бесплатно)
+    private val unisenderApiKey = env("UNISENDER_API_KEY", "")
+    private val unisenderListId = env("UNISENDER_LIST_ID", "1")
+    
+    // Brevo (Sendinblue) - fallback
     private val brevoApiKey = env("BREVO_API_KEY", "")
     
-    // Resend API (fallback)
-    private val resendApiKey = env("RESEND_API_KEY", "")
-    
-    // SMTP fallback
-    private val host = env("SMTP_HOST", "mailhog")
-    private val port = env("SMTP_PORT", "1025").toInt()
+    // SMTP (Яндекс, Mail.ru и др.)
+    private val host = env("SMTP_HOST", "smtp.yandex.ru")
+    private val port = env("SMTP_PORT", "465").toInt()
     private val username = env("SMTP_USER", "")
     private val password = env("SMTP_PASS", "")
-    private val from = env("SMTP_FROM", "noreply@rmpapp.com")
+    private val from = env("SMTP_FROM", "noreply@rmpapp.ru")
     private val fromName = env("SMTP_FROM_NAME", "RMP App")
+    private val useSsl = env("SMTP_SSL", "true").toBoolean()
     private val startTls = env("SMTP_STARTTLS", "false").toBoolean()
     private val resetBase = env("RESET_LINK_BASE", "http://localhost:3000")
     
     private val httpClient = HttpClient.newHttpClient()
-    private val json = Json { ignoreUnknownKeys = true }
 
     private fun env(key: String, default: String): String = System.getenv(key) ?: default
 
@@ -44,25 +45,71 @@ class MailService(private val app: Application) {
         val props = Properties()
         props["mail.smtp.host"] = host
         props["mail.smtp.port"] = port.toString()
-        props["mail.smtp.auth"] = username.isNotBlank().toString()
-        props["mail.smtp.starttls.enable"] = startTls.toString()
-
-        return if (username.isNotBlank()) {
-            Session.getInstance(props, object : jakarta.mail.Authenticator() {
-                override fun getPasswordAuthentication(): PasswordAuthentication =
-                    PasswordAuthentication(username, password)
-            })
-        } else {
-            Session.getInstance(props)
+        props["mail.smtp.auth"] = "true"
+        
+        if (useSsl) {
+            props["mail.smtp.ssl.enable"] = "true"
+            props["mail.smtp.socketFactory.port"] = port.toString()
+            props["mail.smtp.socketFactory.class"] = "javax.net.ssl.SSLSocketFactory"
         }
+        if (startTls) {
+            props["mail.smtp.starttls.enable"] = "true"
+        }
+
+        return Session.getInstance(props, object : jakarta.mail.Authenticator() {
+            override fun getPasswordAuthentication(): PasswordAuthentication =
+                PasswordAuthentication(username, password)
+        })
     }
 
     fun send(to: String, subject: String, html: String) {
-        // Приоритет: Brevo -> Resend -> SMTP
+        // Приоритет: Unisender -> Brevo -> SMTP (Яндекс/Mail.ru)
         when {
+            unisenderApiKey.isNotBlank() -> sendViaUnisender(to, subject, html)
             brevoApiKey.isNotBlank() -> sendViaBrevo(to, subject, html)
-            resendApiKey.isNotBlank() -> sendViaResend(to, subject, html)
-            else -> sendViaSMTP(to, subject, html)
+            username.isNotBlank() -> sendViaSMTP(to, subject, html)
+            else -> app.log.error("❌ No email provider configured!")
+        }
+    }
+    
+    private fun sendViaUnisender(to: String, subject: String, html: String) {
+        try {
+            // Unisender API для отправки email
+            val params = mapOf(
+                "format" to "json",
+                "api_key" to unisenderApiKey,
+                "email" to to,
+                "sender_name" to fromName,
+                "sender_email" to from,
+                "subject" to subject,
+                "body" to html,
+                "list_id" to unisenderListId
+            )
+            
+            val formBody = params.entries.joinToString("&") { (k, v) ->
+                "${URLEncoder.encode(k, StandardCharsets.UTF_8)}=${URLEncoder.encode(v, StandardCharsets.UTF_8)}"
+            }
+            
+            val request = HttpRequest.newBuilder()
+                .uri(URI.create("https://api.unisender.com/ru/api/sendEmail"))
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .POST(HttpRequest.BodyPublishers.ofString(formBody))
+                .build()
+            
+            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+            
+            if (response.statusCode() in 200..299 && !response.body().contains("\"error\"")) {
+                app.log.info("✅ Unisender: sent email to=$to, subject=\"$subject\"")
+            } else {
+                app.log.error("❌ Unisender error: ${response.body()}")
+                // Fallback
+                if (brevoApiKey.isNotBlank()) sendViaBrevo(to, subject, html)
+                else if (username.isNotBlank()) sendViaSMTP(to, subject, html)
+            }
+        } catch (e: Exception) {
+            app.log.error("❌ Unisender exception: ${e.message}")
+            if (brevoApiKey.isNotBlank()) sendViaBrevo(to, subject, html)
+            else if (username.isNotBlank()) sendViaSMTP(to, subject, html)
         }
     }
     
@@ -74,9 +121,7 @@ class MailService(private val app: Application) {
                     put("email", from)
                 })
                 put("to", buildJsonArray {
-                    add(buildJsonObject {
-                        put("email", to)
-                    })
+                    add(buildJsonObject { put("email", to) })
                 })
                 put("subject", subject)
                 put("htmlContent", html)
@@ -86,103 +131,58 @@ class MailService(private val app: Application) {
                 .uri(URI.create("https://api.brevo.com/v3/smtp/email"))
                 .header("api-key", brevoApiKey)
                 .header("Content-Type", "application/json")
-                .header("Accept", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                 .build()
             
             val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
             
             if (response.statusCode() in 200..299) {
-                app.log.info("✅ Brevo: sent email to=$to, subject=\"$subject\"")
+                app.log.info("✅ Brevo: sent email to=$to")
             } else {
                 app.log.error("❌ Brevo error: ${response.statusCode()} - ${response.body()}")
-                // Fallback to Resend or SMTP
-                if (resendApiKey.isNotBlank()) {
-                    app.log.info("Trying Resend as fallback...")
-                    sendViaResend(to, subject, html)
-                }
+                if (username.isNotBlank()) sendViaSMTP(to, subject, html)
             }
         } catch (e: Exception) {
             app.log.error("❌ Brevo exception: ${e.message}")
-            e.printStackTrace()
-            // Fallback
-            if (resendApiKey.isNotBlank()) {
-                sendViaResend(to, subject, html)
-            }
-        }
-    }
-    
-    private fun sendViaResend(to: String, subject: String, html: String) {
-        try {
-            val requestBody = buildJsonObject {
-                put("from", "$fromName <$from>")
-                put("to", buildJsonArray { add(to) })
-                put("subject", subject)
-                put("html", html)
-            }.toString()
-            
-            val request = HttpRequest.newBuilder()
-                .uri(URI.create("https://api.resend.com/emails"))
-                .header("Authorization", "Bearer $resendApiKey")
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                .build()
-            
-            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
-            
-            if (response.statusCode() in 200..299) {
-                app.log.info("✅ Resend: sent email to=$to, subject=\"$subject\"")
-            } else {
-                app.log.error("❌ Resend error: ${response.statusCode()} - ${response.body()}")
-            }
-        } catch (e: Exception) {
-            app.log.error("❌ Resend exception: ${e.message}")
-            e.printStackTrace()
+            if (username.isNotBlank()) sendViaSMTP(to, subject, html)
         }
     }
     
     private fun sendViaSMTP(to: String, subject: String, html: String) {
-        val message = MimeMessage(session())
-        message.setFrom(InternetAddress(from))
-        val recipients: Array<Address> = InternetAddress.parse(to, false)
-            .map { it as Address }
-            .toTypedArray()
-        message.setRecipients(Message.RecipientType.TO, recipients)
-        message.setSubject(subject, "UTF-8")
-        message.setContent(html, "text/html; charset=UTF-8")
-        Transport.send(message)
-        app.log.info("MailService: sent email to=$to, subject=\"$subject\"")
+        try {
+            val message = MimeMessage(session())
+            message.setFrom(InternetAddress(from, fromName, "UTF-8"))
+            message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(to))
+            message.setSubject(subject, "UTF-8")
+            message.setContent(html, "text/html; charset=UTF-8")
+            Transport.send(message)
+            app.log.info("✅ SMTP: sent email to=$to, subject=\"$subject\"")
+        } catch (e: Exception) {
+            app.log.error("❌ SMTP error: ${e.message}")
+            e.printStackTrace()
+        }
     }
 
     fun sendPasswordReset(to: String, token: String) {
-        val resetLink = buildResetLink(resetBase, to, token)
+        val resetLink = "$resetBase/reset?token=${URLEncoder.encode(token, StandardCharsets.UTF_8)}&email=${URLEncoder.encode(to, StandardCharsets.UTF_8)}"
         val html = buildResetEmailHtml(resetLink)
-        send(to, "Password reset", html)
+        send(to, "Сброс пароля", html)
     }
     
-    /**
-     * Отправить 6-значный код для сброса пароля (для мобильного приложения)
-     */
     fun sendPasswordResetCode(to: String, code: String) {
         val html = buildResetCodeEmailHtml(code)
         send(to, "Код сброса пароля - RMP App", html)
     }
 
-    private fun buildResetLink(base: String, email: String, token: String): String {
-        val encodedEmail = URLEncoder.encode(email, StandardCharsets.UTF_8)
-        val encodedToken = URLEncoder.encode(token, StandardCharsets.UTF_8)
-        return "$base/reset?token=$encodedToken&email=$encodedEmail"
-    }
-
     private fun buildResetEmailHtml(resetLink: String): String = """
         <div style="font-family: Arial, sans-serif; background:#f7f7f7; padding:24px;">
             <div style="max-width:480px; margin:0 auto; background:#ffffff; border:1px solid #e5e5e5; padding:24px;">
-                <h2 style="color:#333333; margin-top:0;">Reset your password</h2>
-                <p style="color:#555555; line-height:1.5;">Click the button below to set a new password.</p>
+                <h2 style="color:#333333; margin-top:0;">Сброс пароля</h2>
+                <p style="color:#555555; line-height:1.5;">Нажмите кнопку ниже для сброса пароля.</p>
                 <p style="text-align:center; margin:24px 0;">
-                    <a href="$resetLink" style="display:inline-block; padding:12px 20px; background:#2563eb; color:#ffffff; text-decoration:none; border-radius:4px;">Reset password</a>
+                    <a href="$resetLink" style="display:inline-block; padding:12px 20px; background:#2563eb; color:#ffffff; text-decoration:none; border-radius:4px;">Сбросить пароль</a>
                 </p>
-                <p style="color:#777777; font-size:12px; line-height:1.4;">If the button does not work, copy and paste this link into your browser:</p>
+                <p style="color:#777777; font-size:12px;">Если кнопка не работает, скопируйте ссылку:</p>
                 <p style="word-break:break-all; color:#2563eb; font-size:12px;">$resetLink</p>
             </div>
         </div>
@@ -197,8 +197,8 @@ class MailService(private val app: Application) {
                 <p style="text-align:center; margin:24px 0;">
                     <span style="display:inline-block; padding:16px 32px; background:#2563eb; color:#ffffff; font-size:32px; font-weight:bold; letter-spacing:8px; border-radius:8px;">$code</span>
                 </p>
-                <p style="color:#777777; font-size:12px; line-height:1.4;">Код действителен в течение 15 минут.</p>
-                <p style="color:#777777; font-size:12px; line-height:1.4;">Если вы не запрашивали сброс пароля, просто проигнорируйте это письмо.</p>
+                <p style="color:#777777; font-size:12px;">Код действителен 15 минут.</p>
+                <p style="color:#777777; font-size:12px;">Если вы не запрашивали сброс пароля, проигнорируйте это письмо.</p>
             </div>
         </div>
     """.trimIndent()
