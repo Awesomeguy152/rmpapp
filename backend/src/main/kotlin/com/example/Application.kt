@@ -9,6 +9,7 @@ import com.example.plugins.configureDatabase
 import com.example.plugins.configureWebSockets
 import com.example.plugins.configureClickHouseLogging
 import com.example.services.ClickHouseService
+import com.example.services.RedisService
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
@@ -26,9 +27,12 @@ fun Application.module() {
     configureDatabase()
     configureWebSockets()
     
+    // Redis/KeyDB для брокера сообщений между микросервисами
+    val redisService = RedisService(this)
+    
     // ClickHouse для аналитики и логирования
     val clickHouseService = ClickHouseService(this)
     configureClickHouseLogging(clickHouseService)
     
-    configureRouting(clickHouseService)
+    configureRouting(clickHouseService, redisService)
 }

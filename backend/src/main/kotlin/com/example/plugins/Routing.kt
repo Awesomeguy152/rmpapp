@@ -11,13 +11,15 @@ import com.example.routes.deviceTokenRoutes
 import com.example.routes.uploadRoutes
 import com.example.routes.meetingRoutes
 import com.example.routes.analyticsRoutes
+import com.example.routes.redisRoutes
 import com.example.services.ClickHouseService
+import com.example.services.RedisService
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 
-fun Application.configureRouting(clickHouseService: ClickHouseService) {
+fun Application.configureRouting(clickHouseService: ClickHouseService, redisService: RedisService) {
     routing {
         // Health check для Railway/Render/Fly.io
         get("/api/health") {
@@ -35,5 +37,6 @@ fun Application.configureRouting(clickHouseService: ClickHouseService) {
         uploadRoutes()
         meetingRoutes()
         analyticsRoutes(clickHouseService)
+        redisRoutes(redisService)
     }
 }

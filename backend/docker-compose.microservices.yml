@@ -1,0 +1,224 @@
+version: '3.8'
+
+# ===== Микросервисная архитектура RMP App =====
+# 5 сервисов + Redis + PostgreSQL + ClickHouse
+
+services:
+  
+  # ===== Message Broker =====
+  redis:
+    image: eqalpha/keydb:latest
+    container_name: rmp-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: keydb-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "keydb-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rmp-network
+
+  # ===== Databases =====
+  postgres:
+    image: postgres:15-alpine
+    container_name: rmp-postgres
+    environment:
+      POSTGRES_DB: rmpapp
+      POSTGRES_USER: rmpuser
+      POSTGRES_PASSWORD: rmppassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rmpuser -d rmpapp"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rmp-network
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: rmp-clickhouse
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    environment:
+      CLICKHOUSE_DB: analytics
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    networks:
+      - rmp-network
+
+  # ===== Microservice 1: User Service =====
+  user-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rmp-user-service
+    environment:
+      SERVICE_NAME: user-service
+      SERVICE_PORT: 8081
+      REDIS_ENABLED: true
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://rmpuser:rmppassword@postgres:5432/rmpapp
+      JWT_SECRET: ${JWT_SECRET}
+    ports:
+      - "8081:8081"
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - rmp-network
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 512M
+
+  # ===== Microservice 2: Chat Service =====
+  chat-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rmp-chat-service
+    environment:
+      SERVICE_NAME: chat-service
+      SERVICE_PORT: 8082
+      REDIS_ENABLED: true
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://rmpuser:rmppassword@postgres:5432/rmpapp
+      JWT_SECRET: ${JWT_SECRET}
+    ports:
+      - "8082:8082"
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - rmp-network
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 512M
+
+  # ===== Microservice 3: AI Service =====
+  ai-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rmp-ai-service
+    environment:
+      SERVICE_NAME: ai-service
+      SERVICE_PORT: 8083
+      REDIS_ENABLED: true
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://rmpuser:rmppassword@postgres:5432/rmpapp
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      JWT_SECRET: ${JWT_SECRET}
+    ports:
+      - "8083:8083"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - rmp-network
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 512M
+
+  # ===== Microservice 4: Notification Service =====
+  notification-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rmp-notification-service
+    environment:
+      SERVICE_NAME: notification-service
+      SERVICE_PORT: 8084
+      REDIS_ENABLED: true
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://rmpuser:rmppassword@postgres:5432/rmpapp
+      FIREBASE_CREDENTIALS: ${FIREBASE_CREDENTIALS}
+    ports:
+      - "8084:8084"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - rmp-network
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 256M
+
+  # ===== Microservice 5: Analytics Service =====
+  analytics-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rmp-analytics-service
+    environment:
+      SERVICE_NAME: analytics-service
+      SERVICE_PORT: 8085
+      REDIS_ENABLED: true
+      REDIS_URL: redis://redis:6379
+      CLICKHOUSE_ENABLED: true
+      CLICKHOUSE_URL: jdbc:clickhouse://clickhouse:8123/analytics
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ""
+    ports:
+      - "8085:8085"
+    depends_on:
+      redis:
+        condition: service_healthy
+      clickhouse:
+        condition: service_started
+    networks:
+      - rmp-network
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 512M
+
+  # ===== API Gateway (Nginx) =====
+  api-gateway:
+    image: nginx:alpine
+    container_name: rmp-api-gateway
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./microservices/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - user-service
+      - chat-service
+      - ai-service
+      - notification-service
+      - analytics-service
+    networks:
+      - rmp-network
+
+networks:
+  rmp-network:
+    driver: bridge
+
+volumes:
+  redis_data:
+  postgres_data:
+  clickhouse_data:
