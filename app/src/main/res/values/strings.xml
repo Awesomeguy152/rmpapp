@@ -161,6 +161,7 @@
     <string name="conversation_muted">Уведомления отключены</string>
     <string name="conversation_unmuted">Уведомления включены</string>
     <string name="conversation_deleted">Чат удалён</string>
+    <string name="conversation_left">Вы вышли из чата</string>
     <string name="conversation_pinned">Чат закреплён</string>
     <string name="conversation_unpinned">Чат откреплён</string>
     <string name="error_generic">Произошла ошибка. Попробуйте ещё раз.</string>

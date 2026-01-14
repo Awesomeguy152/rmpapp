@@ -199,6 +199,13 @@ class ChatService(private val apiClient: ApiClient) {
     }
 
     /**
+     * Выйти из группового чата (не удаляя его)
+     */
+    suspend fun leaveConversation(conversationId: String) {
+        httpClient.post("$baseUrl/api/chat/conversations/$conversationId/leave")
+    }
+
+    /**
      * Закрепить чат
      */
     suspend fun pinConversation(conversationId: String): ConversationSummaryDto =

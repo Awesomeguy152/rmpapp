@@ -274,6 +274,28 @@ fun Route.chatRoutes() {
                 call.respond(HttpStatusCode.OK, conversation)
             }
 
+            // Leave conversation (for group chats - exit without deleting)
+            post("/conversations/{id}/leave") {
+                val principal = call.principalOrUnauthorized() ?: return@post
+                val requesterId = principal.userIdOrNull()
+                    ?: return@post call.respondError(HttpStatusCode.BadRequest, "invalid_subject")
+
+                val conversationId = call.parameters["id"].toUuidOrNull()
+                    ?: return@post call.respondError(HttpStatusCode.BadRequest, "invalid_conversation_id")
+
+                try {
+                    service.leaveConversation(conversationId, requesterId)
+                } catch (iae: IllegalArgumentException) {
+                    return@post call.respondError(HttpStatusCode.BadRequest, iae.message ?: "invalid_request")
+                } catch (nse: NoSuchElementException) {
+                    return@post call.respondError(HttpStatusCode.NotFound, nse.message ?: "conversation_not_found")
+                } catch (e: IllegalStateException) {
+                    return@post call.respondError(HttpStatusCode.Forbidden, e.message ?: "access_denied")
+                }
+
+                call.respond(HttpStatusCode.NoContent)
+            }
+
             // Delete conversation
             delete("/conversations/{id}") {
                 val principal = call.principalOrUnauthorized() ?: return@delete

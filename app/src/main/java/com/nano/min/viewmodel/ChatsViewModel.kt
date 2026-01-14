@@ -610,6 +610,72 @@ class ChatsViewModel(
         }
     }
 
+    fun leaveConversation(conversationId: String) {
+        viewModelScope.launch {
+            try {
+                chatService.leaveConversation(conversationId)
+                // Удаляем из списка
+                _conversationState.update { state ->
+                    state.copy(conversations = state.conversations.filter { it.id != conversationId })
+                }
+                // Если это выбранный чат, сбрасываем
+                if (selectedConversationId == conversationId) {
+                    selectedConversationId = null
+                    _detailState.value = ConversationDetailUiState()
+                }
+                _events.emit(ChatsEvent.ShowMessage(getString(R.string.conversation_left)))
+            } catch (t: Throwable) {
+                handleNetworkError(t, R.string.error_generic)
+            }
+        }
+    }
+
+    /**
+     * Удаляет или выходит из чата в зависимости от типа и владельца:
+     * - DIRECT чаты: всегда удаляем (для текущего пользователя)
+     * - GROUP чаты: если владелец - удаляем, иначе - выходим
+     */
+    fun deleteOrLeaveConversation(conversationId: String) {
+        val conversation = _conversationState.value.conversations.find { it.id == conversationId }
+        val currentUserId = me?.id
+        
+        if (conversation != null && currentUserId != null) {
+            val isGroup = conversation.raw.type == ConversationType.GROUP
+            val isOwner = conversation.raw.createdBy == currentUserId
+            
+            if (isGroup && !isOwner) {
+                leaveConversation(conversationId)
+            } else {
+                deleteConversation(conversationId)
+            }
+        } else {
+            // Если не удалось определить - пробуем удалить
+            deleteConversation(conversationId)
+        }
+    }
+
+    /**
+     * Проверяет, является ли текущий пользователь владельцем группового чата
+     */
+    fun isGroupChatOwner(conversationId: String): Boolean {
+        val conversation = _conversationState.value.conversations.find { it.id == conversationId }
+        val currentUserId = me?.id
+        
+        if (conversation != null && currentUserId != null) {
+            return conversation.raw.type == ConversationType.GROUP && 
+                   conversation.raw.createdBy == currentUserId
+        }
+        return false
+    }
+
+    /**
+     * Проверяет, является ли чат групповым
+     */
+    fun isGroupChat(conversationId: String): Boolean {
+        val conversation = _conversationState.value.conversations.find { it.id == conversationId }
+        return conversation?.raw?.type == ConversationType.GROUP
+    }
+
     // ====== Закреплённые сообщения ======
     
     fun loadPinnedMessages(conversationId: String) {

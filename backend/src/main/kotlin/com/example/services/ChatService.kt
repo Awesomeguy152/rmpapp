@@ -284,6 +284,40 @@ class ChatService {
         getConversation(conversationId, requesterId)
     }
 
+    /**
+     * Выйти из группового чата (для участников)
+     */
+    fun leaveConversation(conversationId: UUID, requesterId: UUID): Boolean = transaction {
+        val conversationEntityId = EntityID(conversationId, Conversations)
+        val requesterEntityId = EntityID(requesterId, UserTable)
+        
+        // Проверяем что чат существует
+        val conversation = Conversations.select { Conversations.id eq conversationEntityId }.singleOrNull()
+            ?: error("conversation_not_found")
+        
+        // Удаляем членство пользователя
+        val deleted = ConversationMembers.deleteWhere {
+            (ConversationMembers.conversation eq conversationEntityId) and 
+            (ConversationMembers.user eq requesterEntityId)
+        }
+        
+        // Удаляем связанные данные пользователя для этого чата
+        ConversationPins.deleteWhere {
+            (ConversationPins.conversation eq conversationEntityId) and (ConversationPins.user eq requesterEntityId)
+        }
+        ConversationArchives.deleteWhere {
+            (ConversationArchives.conversation eq conversationEntityId) and (ConversationArchives.user eq requesterEntityId)
+        }
+        ConversationMutes.deleteWhere {
+            (ConversationMutes.conversation eq conversationEntityId) and (ConversationMutes.user eq requesterEntityId)
+        }
+        ConversationReadMarkers.deleteWhere {
+            (ConversationReadMarkers.conversation eq conversationEntityId) and (ConversationReadMarkers.user eq requesterEntityId)
+        }
+        
+        deleted > 0
+    }
+
     fun deleteConversation(conversationId: UUID, requesterId: UUID): Boolean = transaction {
         val conversationEntityId = EntityID(conversationId, Conversations)
         
@@ -294,11 +328,7 @@ class ChatService {
         val isOwner = conversation[Conversations.createdBy].value == requesterId
         val isDirect = conversation[Conversations.type] == ConversationType.DIRECT
         
-        if (!isOwner && !isDirect) {
-            error("only_owner_can_delete")
-        }
-        
-        // Для direct - удаляем членство для этого пользователя (выход из чата)
+        // Для direct чата - любой участник может "выйти" (удалить для себя)
         if (isDirect) {
             ConversationMembers.deleteWhere {
                 (ConversationMembers.conversation eq conversationEntityId) and (ConversationMembers.user eq EntityID(requesterId, UserTable))
@@ -306,8 +336,12 @@ class ChatService {
             return@transaction true
         }
         
-        // Для групповых чатов - полное удаление (только владелец)
-        // Удаляем все связанные данные
+        // Для группового чата - только владелец может удалить полностью
+        if (!isOwner) {
+            error("only_owner_can_delete")
+        }
+        
+        // Полное удаление группового чата
         val messageIds = Messages.select { Messages.conversation eq conversationEntityId }.map { it[Messages.id] }
         
         MessageReactions.deleteWhere { MessageReactions.message inList messageIds }

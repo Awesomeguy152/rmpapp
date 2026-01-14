@@ -409,7 +409,7 @@ fun AppRootScreen(
 							onPinConversation = { viewModel.pinConversation(it) },
 							onArchiveConversation = { viewModel.archiveConversation(it) },
 							onMuteConversation = { viewModel.muteConversation(it) },
-							onDeleteConversation = { viewModel.deleteConversation(it) },
+							onDeleteConversation = { viewModel.deleteOrLeaveConversation(it) },
 							modifier = Modifier.fillMaxSize()
 						)
 					}
@@ -426,7 +426,7 @@ fun AppRootScreen(
 							onPinConversation = { viewModel.pinConversation(it) },
 							onArchiveConversation = { viewModel.archiveConversation(it) },
 							onMuteConversation = { viewModel.muteConversation(it) },
-							onDeleteConversation = { viewModel.deleteConversation(it) },
+							onDeleteConversation = { viewModel.deleteOrLeaveConversation(it) },
 							modifier = Modifier
 								.widthIn(max = 360.dp)
 								.fillMaxHeight()

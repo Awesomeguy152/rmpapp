@@ -128,7 +128,11 @@ fun AdminPanelScreen(
                             modifier = Modifier.size(24.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(stringResource(R.string.admin_panel))
+                        Text(
+                            text = stringResource(R.string.admin_panel),
+                            maxLines = 1,
+                            style = MaterialTheme.typography.titleMedium
+                        )
                     }
                 },
                 navigationIcon = {
