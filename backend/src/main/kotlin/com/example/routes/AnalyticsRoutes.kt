@@ -18,6 +18,16 @@ import java.util.UUID
  */
 fun Route.analyticsRoutes(clickHouseService: ClickHouseService) {
     
+    // Публичный эндпоинт для проверки статуса (без авторизации)
+    get("/api/analytics/status") {
+        val stats = clickHouseService.getRequestStats(1)
+        call.respond(HttpStatusCode.OK, mapOf(
+            "enabled" to (stats != null),
+            "status" to if (stats != null) "connected" else "disabled",
+            "clickhouse" to "ClickHouse Cloud"
+        ))
+    }
+    
     authenticate("auth-jwt") {
         route("/api/analytics") {
             
@@ -92,18 +102,6 @@ fun Route.analyticsRoutes(clickHouseService: ClickHouseService) {
                 } else {
                     call.respond(HttpStatusCode.NotFound, mapOf("error" to "no_activity_found"))
                 }
-            }
-            
-            /**
-             * GET /api/analytics/status
-             * Статус ClickHouse
-             */
-            get("/status") {
-                val stats = clickHouseService.getRequestStats(1)
-                call.respond(HttpStatusCode.OK, mapOf(
-                    "enabled" to (stats != null),
-                    "status" to if (stats != null) "connected" else "disabled"
-                ))
             }
         }
     }

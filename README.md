@@ -135,20 +135,20 @@ cd backend
 
 ## ⚙️ Переменные окружения (Backend)
 
-| Переменная       | Описание              | Пример                           |
-| ---------------- | --------------------- | -------------------------------- |
-| `DATABASE_URL`   | PostgreSQL URL        | `postgresql://user:pass@host/db` |
-| `JWT_SECRET`     | Секрет для JWT        | `your-secret-key`                |
-| `OPENAI_API_KEY` | Ключ OpenAI           | `sk-...`                         |
-| `SMTP_HOST`      | SMTP сервер           | `smtp.yandex.ru`                 |
-| `SMTP_PORT`      | Порт SMTP             | `587`                            |
-| `SMTP_USER`      | Email логин           | `user@yandex.ru`                 |
-| `SMTP_PASS`      | Пароль/App password   | `xxxx`                           |
-| `SMTP_STARTTLS`  | Использовать STARTTLS | `true`                           |
-| `CLICKHOUSE_ENABLED` | Включить аналитику ClickHouse | `true`                    |
-| `CLICKHOUSE_URL` | ClickHouse JDBC URL   | `jdbc:clickhouse://localhost:8123/default` |
-| `CLICKHOUSE_USER` | Пользователь ClickHouse | `default`                     |
-| `CLICKHOUSE_PASSWORD` | Пароль ClickHouse | `(пусто по умолчанию)`           |
+| Переменная            | Описание                      | Пример                                     |
+| --------------------- | ----------------------------- | ------------------------------------------ |
+| `DATABASE_URL`        | PostgreSQL URL                | `postgresql://user:pass@host/db`           |
+| `JWT_SECRET`          | Секрет для JWT                | `your-secret-key`                          |
+| `OPENAI_API_KEY`      | Ключ OpenAI                   | `sk-...`                                   |
+| `SMTP_HOST`           | SMTP сервер                   | `smtp.yandex.ru`                           |
+| `SMTP_PORT`           | Порт SMTP                     | `587`                                      |
+| `SMTP_USER`           | Email логин                   | `user@yandex.ru`                           |
+| `SMTP_PASS`           | Пароль/App password           | `xxxx`                                     |
+| `SMTP_STARTTLS`       | Использовать STARTTLS         | `true`                                     |
+| `CLICKHOUSE_ENABLED`  | Включить аналитику ClickHouse | `true`                                     |
+| `CLICKHOUSE_URL`      | ClickHouse JDBC URL           | `jdbc:clickhouse://localhost:8123/default` |
+| `CLICKHOUSE_USER`     | Пользователь ClickHouse       | `default`                                  |
+| `CLICKHOUSE_PASSWORD` | Пароль ClickHouse             | `(пусто по умолчанию)`                     |
 
 ---
 
@@ -157,20 +157,23 @@ cd backend
 Проект использует **ClickHouse** для аналитики и логирования:
 
 ### Возможности:
+
 - **Логирование API запросов** — все HTTP запросы автоматически записываются
 - **Аналитика активности пользователей** — кто, когда и что делал
 - **Метрики производительности** — время ответа, ошибки
 - **Статистика сообщений** — объёмы переписки по чатам
 
 ### API эндпоинты аналитики:
-| Эндпоинт | Описание |
-|----------|----------|
-| `GET /api/analytics/requests?hours=24` | Статистика запросов за период |
-| `GET /api/analytics/endpoints?limit=10` | Топ эндпоинтов по нагрузке |
-| `GET /api/analytics/user/{userId}?days=7` | Активность пользователя |
-| `GET /api/analytics/status` | Статус подключения ClickHouse |
+
+| Эндпоинт                                  | Описание                      |
+| ----------------------------------------- | ----------------------------- |
+| `GET /api/analytics/requests?hours=24`    | Статистика запросов за период |
+| `GET /api/analytics/endpoints?limit=10`   | Топ эндпоинтов по нагрузке    |
+| `GET /api/analytics/user/{userId}?days=7` | Активность пользователя       |
+| `GET /api/analytics/status`               | Статус подключения ClickHouse |
 
 ### Запуск с ClickHouse (локально):
+
 ```bash
 docker-compose up -d clickhouse
 ```
