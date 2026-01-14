@@ -89,10 +89,14 @@ class MailService(private val app: Application) {
     }
     
     private fun sendViaBrevo(to: String, subject: String, html: String) {
+        // Для Brevo используем email из SMTP_USER если SMTP_FROM не настроен
+        val senderEmail = if (from == "noreply@rmpapp.ru") username.ifBlank { from } else from
+        app.log.info("📧 Brevo: sender=$senderEmail, to=$to")
+        
         val requestBody = buildJsonObject {
             put("sender", buildJsonObject {
                 put("name", fromName)
-                put("email", from)
+                put("email", senderEmail)
             })
             put("to", buildJsonArray {
                 add(buildJsonObject { put("email", to) })
@@ -114,11 +118,8 @@ class MailService(private val app: Application) {
             app.log.info("✅ Brevo: sent email to=$to")
         } else {
             app.log.error("❌ Brevo error: ${response.statusCode()} - ${response.body()}")
-            // Fallback to SMTP
-            if (username.isNotBlank()) {
-                app.log.info("Trying SMTP fallback...")
-                sendViaSMTP(to, subject, html)
-            }
+            // Больше не падаем на SMTP — возвращаем ошибку Brevo
+            throw RuntimeException("Brevo API error: ${response.statusCode()} - ${response.body()}")
         }
     }
     
