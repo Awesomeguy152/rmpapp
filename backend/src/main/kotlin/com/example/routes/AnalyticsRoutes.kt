@@ -21,10 +21,10 @@ fun Route.analyticsRoutes(clickHouseService: ClickHouseService) {
     // Публичный эндпоинт для проверки статуса (без авторизации)
     get("/api/analytics/status") {
         val stats = clickHouseService.getRequestStats(1)
-        call.respond(HttpStatusCode.OK, mapOf(
-            "enabled" to (stats != null),
-            "status" to if (stats != null) "connected" else "disabled",
-            "clickhouse" to "ClickHouse Cloud"
+        call.respond(HttpStatusCode.OK, ClickHouseStatusResponse(
+            enabled = stats != null,
+            status = if (stats != null) "connected" else "disabled",
+            provider = "ClickHouse Cloud"
         ))
     }
     
@@ -50,9 +50,9 @@ fun Route.analyticsRoutes(clickHouseService: ClickHouseService) {
                         periodHours = hours
                     ))
                 } else {
-                    call.respond(HttpStatusCode.ServiceUnavailable, mapOf(
-                        "error" to "analytics_disabled",
-                        "message" to "ClickHouse analytics is not enabled"
+                    call.respond(HttpStatusCode.ServiceUnavailable, AnalyticsErrorResponse(
+                        error = "analytics_disabled",
+                        message = "ClickHouse analytics is not enabled"
                     ))
                 }
             }
@@ -86,7 +86,7 @@ fun Route.analyticsRoutes(clickHouseService: ClickHouseService) {
              */
             get("/user/{userId}") {
                 val userId = call.parameters["userId"] 
-                    ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "user_id_required"))
+                    ?: return@get call.respond(HttpStatusCode.BadRequest, AnalyticsErrorResponse(error = "user_id_required"))
                 val days = call.request.queryParameters["days"]?.toIntOrNull() ?: 7
                 
                 val stats = clickHouseService.getUserActivityStats(userId, days)
@@ -100,7 +100,7 @@ fun Route.analyticsRoutes(clickHouseService: ClickHouseService) {
                         periodDays = days
                     ))
                 } else {
-                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "no_activity_found"))
+                    call.respond(HttpStatusCode.NotFound, AnalyticsErrorResponse(error = "no_activity_found"))
                 }
             }
         }
@@ -143,4 +143,17 @@ data class UserActivityStatsResponse(
     val firstActivity: String?,
     val lastActivity: String?,
     val periodDays: Int
+)
+
+@Serializable
+data class ClickHouseStatusResponse(
+    val enabled: Boolean,
+    val status: String,
+    val provider: String
+)
+
+@Serializable
+data class AnalyticsErrorResponse(
+    val error: String,
+    val message: String? = null
 )
