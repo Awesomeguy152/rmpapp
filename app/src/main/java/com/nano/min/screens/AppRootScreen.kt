@@ -6,6 +6,8 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -516,7 +518,8 @@ private fun ConversationListPanel(
 				)
 				Row(
 					verticalAlignment = Alignment.CenterVertically,
-					horizontalArrangement = Arrangement.spacedBy(8.dp)
+					horizontalArrangement = Arrangement.spacedBy(8.dp),
+					modifier = Modifier.horizontalScroll(rememberScrollState())
 				) {
 					AssistChip(
 						onClick = onCreateConversation,
