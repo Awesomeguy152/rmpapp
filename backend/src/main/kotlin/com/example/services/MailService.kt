@@ -2,7 +2,6 @@ package com.example.services
 
 import io.ktor.server.application.Application
 import io.ktor.server.application.log
-import jakarta.mail.Address
 import jakarta.mail.Message
 import jakarta.mail.PasswordAuthentication
 import jakarta.mail.Session
@@ -16,28 +15,26 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.charset.StandardCharsets
 import java.util.Properties
+import java.util.concurrent.Executors
 import kotlinx.serialization.json.*
 
 class MailService(private val app: Application) {
-    // Unisender - российский сервис (1500 писем/месяц бесплатно)
-    private val unisenderApiKey = env("UNISENDER_API_KEY", "")
-    private val unisenderListId = env("UNISENDER_LIST_ID", "1")
-    
-    // Brevo (Sendinblue) - fallback
+    // Brevo (Sendinblue) - 300 писем/день бесплатно
     private val brevoApiKey = env("BREVO_API_KEY", "")
     
     // SMTP (Яндекс, Mail.ru и др.)
     private val host = env("SMTP_HOST", "smtp.yandex.ru")
-    private val port = env("SMTP_PORT", "465").toInt()
+    private val port = env("SMTP_PORT", "587").toInt()
     private val username = env("SMTP_USER", "")
     private val password = env("SMTP_PASS", "")
     private val from = env("SMTP_FROM", "noreply@rmpapp.ru")
     private val fromName = env("SMTP_FROM_NAME", "RMP App")
-    private val useSsl = env("SMTP_SSL", "true").toBoolean()
-    private val startTls = env("SMTP_STARTTLS", "false").toBoolean()
+    private val useSsl = env("SMTP_SSL", "false").toBoolean()
+    private val startTls = env("SMTP_STARTTLS", "true").toBoolean()
     private val resetBase = env("RESET_LINK_BASE", "http://localhost:3000")
     
     private val httpClient = HttpClient.newHttpClient()
+    private val emailExecutor = Executors.newSingleThreadExecutor()
 
     private fun env(key: String, default: String): String = System.getenv(key) ?: default
 
@@ -46,6 +43,9 @@ class MailService(private val app: Application) {
         props["mail.smtp.host"] = host
         props["mail.smtp.port"] = port.toString()
         props["mail.smtp.auth"] = "true"
+        props["mail.smtp.connectiontimeout"] = "15000"
+        props["mail.smtp.timeout"] = "15000"
+        props["mail.smtp.writetimeout"] = "15000"
         
         if (useSsl) {
             props["mail.smtp.ssl.enable"] = "true"
@@ -54,6 +54,7 @@ class MailService(private val app: Application) {
         }
         if (startTls) {
             props["mail.smtp.starttls.enable"] = "true"
+            props["mail.smtp.starttls.required"] = "true"
         }
 
         return Session.getInstance(props, object : jakarta.mail.Authenticator() {
@@ -63,104 +64,63 @@ class MailService(private val app: Application) {
     }
 
     fun send(to: String, subject: String, html: String) {
-        // Приоритет: Unisender -> Brevo -> SMTP (Яндекс/Mail.ru)
-        when {
-            unisenderApiKey.isNotBlank() -> sendViaUnisender(to, subject, html)
-            brevoApiKey.isNotBlank() -> sendViaBrevo(to, subject, html)
-            username.isNotBlank() -> sendViaSMTP(to, subject, html)
-            else -> app.log.error("❌ No email provider configured!")
-        }
-    }
-    
-    private fun sendViaUnisender(to: String, subject: String, html: String) {
-        try {
-            // Unisender API для отправки email
-            val params = mapOf(
-                "format" to "json",
-                "api_key" to unisenderApiKey,
-                "email" to to,
-                "sender_name" to fromName,
-                "sender_email" to from,
-                "subject" to subject,
-                "body" to html,
-                "list_id" to unisenderListId
-            )
-            
-            val formBody = params.entries.joinToString("&") { (k, v) ->
-                "${URLEncoder.encode(k, StandardCharsets.UTF_8)}=${URLEncoder.encode(v, StandardCharsets.UTF_8)}"
+        // Отправляем асинхронно, чтобы не блокировать HTTP запрос
+        emailExecutor.submit {
+            try {
+                when {
+                    brevoApiKey.isNotBlank() -> sendViaBrevo(to, subject, html)
+                    username.isNotBlank() -> sendViaSMTP(to, subject, html)
+                    else -> app.log.error("❌ No email provider configured!")
+                }
+            } catch (e: Exception) {
+                app.log.error("❌ Email send error: ${e.message}")
             }
-            
-            val request = HttpRequest.newBuilder()
-                .uri(URI.create("https://api.unisender.com/ru/api/sendEmail"))
-                .header("Content-Type", "application/x-www-form-urlencoded")
-                .POST(HttpRequest.BodyPublishers.ofString(formBody))
-                .build()
-            
-            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
-            
-            if (response.statusCode() in 200..299 && !response.body().contains("\"error\"")) {
-                app.log.info("✅ Unisender: sent email to=$to, subject=\"$subject\"")
-            } else {
-                app.log.error("❌ Unisender error: ${response.body()}")
-                // Fallback
-                if (brevoApiKey.isNotBlank()) sendViaBrevo(to, subject, html)
-                else if (username.isNotBlank()) sendViaSMTP(to, subject, html)
-            }
-        } catch (e: Exception) {
-            app.log.error("❌ Unisender exception: ${e.message}")
-            if (brevoApiKey.isNotBlank()) sendViaBrevo(to, subject, html)
-            else if (username.isNotBlank()) sendViaSMTP(to, subject, html)
         }
     }
     
     private fun sendViaBrevo(to: String, subject: String, html: String) {
-        try {
-            val requestBody = buildJsonObject {
-                put("sender", buildJsonObject {
-                    put("name", fromName)
-                    put("email", from)
-                })
-                put("to", buildJsonArray {
-                    add(buildJsonObject { put("email", to) })
-                })
-                put("subject", subject)
-                put("htmlContent", html)
-            }.toString()
-            
-            val request = HttpRequest.newBuilder()
-                .uri(URI.create("https://api.brevo.com/v3/smtp/email"))
-                .header("api-key", brevoApiKey)
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                .build()
-            
-            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
-            
-            if (response.statusCode() in 200..299) {
-                app.log.info("✅ Brevo: sent email to=$to")
-            } else {
-                app.log.error("❌ Brevo error: ${response.statusCode()} - ${response.body()}")
-                if (username.isNotBlank()) sendViaSMTP(to, subject, html)
+        val requestBody = buildJsonObject {
+            put("sender", buildJsonObject {
+                put("name", fromName)
+                put("email", from)
+            })
+            put("to", buildJsonArray {
+                add(buildJsonObject { put("email", to) })
+            })
+            put("subject", subject)
+            put("htmlContent", html)
+        }.toString()
+        
+        val request = HttpRequest.newBuilder()
+            .uri(URI.create("https://api.brevo.com/v3/smtp/email"))
+            .header("api-key", brevoApiKey)
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+            .build()
+        
+        val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+        
+        if (response.statusCode() in 200..299) {
+            app.log.info("✅ Brevo: sent email to=$to")
+        } else {
+            app.log.error("❌ Brevo error: ${response.statusCode()} - ${response.body()}")
+            // Fallback to SMTP
+            if (username.isNotBlank()) {
+                app.log.info("Trying SMTP fallback...")
+                sendViaSMTP(to, subject, html)
             }
-        } catch (e: Exception) {
-            app.log.error("❌ Brevo exception: ${e.message}")
-            if (username.isNotBlank()) sendViaSMTP(to, subject, html)
         }
     }
     
     private fun sendViaSMTP(to: String, subject: String, html: String) {
-        try {
-            val message = MimeMessage(session())
-            message.setFrom(InternetAddress(from, fromName, "UTF-8"))
-            message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(to))
-            message.setSubject(subject, "UTF-8")
-            message.setContent(html, "text/html; charset=UTF-8")
-            Transport.send(message)
-            app.log.info("✅ SMTP: sent email to=$to, subject=\"$subject\"")
-        } catch (e: Exception) {
-            app.log.error("❌ SMTP error: ${e.message}")
-            e.printStackTrace()
-        }
+        app.log.info("📧 SMTP: Connecting to $host:$port (SSL=$useSsl, STARTTLS=$startTls)")
+        val message = MimeMessage(session())
+        message.setFrom(InternetAddress(from, fromName, "UTF-8"))
+        message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(to))
+        message.setSubject(subject, "UTF-8")
+        message.setContent(html, "text/html; charset=UTF-8")
+        Transport.send(message)
+        app.log.info("✅ SMTP: sent email to=$to")
     }
 
     fun sendPasswordReset(to: String, token: String) {
