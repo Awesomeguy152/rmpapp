@@ -19,19 +19,19 @@ import java.util.concurrent.Executors
 import kotlinx.serialization.json.*
 
 class MailService(private val app: Application) {
-    // Brevo (Sendinblue) - 300 писем/день бесплатно
-    private val brevoApiKey = env("BREVO_API_KEY", "")
+    // Читаем переменные каждый раз чтобы подхватывать изменения после рестарта
+    private val brevoApiKey: String get() = env("BREVO_API_KEY", "")
     
     // SMTP (Яндекс, Mail.ru и др.)
-    private val host = env("SMTP_HOST", "smtp.yandex.ru")
-    private val port = env("SMTP_PORT", "587").toInt()
-    private val username = env("SMTP_USER", "")
-    private val password = env("SMTP_PASS", "")
-    private val from = env("SMTP_FROM", "noreply@rmpapp.ru")
-    private val fromName = env("SMTP_FROM_NAME", "RMP App")
-    private val useSsl = env("SMTP_SSL", "false").toBoolean()
-    private val startTls = env("SMTP_STARTTLS", "true").toBoolean()
-    private val resetBase = env("RESET_LINK_BASE", "http://localhost:3000")
+    private val host: String get() = env("SMTP_HOST", "smtp.yandex.ru")
+    private val port: Int get() = env("SMTP_PORT", "587").toInt()
+    private val username: String get() = env("SMTP_USER", "")
+    private val password: String get() = env("SMTP_PASS", "")
+    private val from: String get() = env("SMTP_FROM", "noreply@rmpapp.ru")
+    private val fromName: String get() = env("SMTP_FROM_NAME", "RMP App")
+    private val useSsl: Boolean get() = env("SMTP_SSL", "false").toBoolean()
+    private val startTls: Boolean get() = env("SMTP_STARTTLS", "true").toBoolean()
+    private val resetBase: String get() = env("RESET_LINK_BASE", "http://localhost:3000")
     
     private val httpClient = HttpClient.newHttpClient()
     private val emailExecutor = Executors.newSingleThreadExecutor()
