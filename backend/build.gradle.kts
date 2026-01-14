@@ -36,7 +36,8 @@ dependencies {
     implementation("at.favre.lib:bcrypt:0.10.2")
     
     // ClickHouse for analytics and logging
-    implementation("com.clickhouse:clickhouse-jdbc:0.6.0")
+    implementation("com.clickhouse:clickhouse-jdbc:0.6.0:http")
+    implementation("org.apache.httpcomponents.client5:httpclient5:5.3")
     implementation("org.lz4:lz4-java:1.8.0")
     
     // Redis/KeyDB - Message Broker

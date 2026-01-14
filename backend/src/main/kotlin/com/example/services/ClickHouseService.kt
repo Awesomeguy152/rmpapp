@@ -32,6 +32,14 @@ class ClickHouseService(private val app: Application) {
     
     init {
         if (enabled) {
+            // Явная загрузка драйвера ClickHouse JDBC
+            try {
+                Class.forName("com.clickhouse.jdbc.ClickHouseDriver")
+                app.log.info("📊 ClickHouse JDBC driver loaded successfully")
+            } catch (e: ClassNotFoundException) {
+                app.log.error("❌ ClickHouse JDBC driver not found: ${e.message}")
+            }
+            
             app.log.info("📊 ClickHouse analytics enabled: $clickhouseUrl")
             initializeTables()
             startBatchInsertJob()

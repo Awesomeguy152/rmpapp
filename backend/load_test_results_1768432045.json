@@ -1,0 +1,31 @@
+{
+  "config": {
+    "base_url": "https://rmpapp-production.up.railway.app",
+    "total_clients": 1000,
+    "concurrent_clients": 100
+  },
+  "summary": {
+    "total_time_seconds": 76.58534979820251,
+    "total_requests": 9000,
+    "successful_requests": 1237,
+    "failed_requests": 7763,
+    "success_rate_percent": 13.744444444444445,
+    "requests_per_second": 117.5159482030757,
+    "avg_duration_ms": 7667.2727779812285,
+    "min_duration_ms": 179.53872680664062,
+    "max_duration_ms": 30172.120094299316,
+    "p50_ms": 2292.981266975403,
+    "p95_ms": 30796.77391052246,
+    "p99_ms": 30808.267831802368
+  },
+  "status_codes": {
+    "201": 100,
+    "200": 1137,
+    "0": 912,
+    "401": 856,
+    "404": 5995
+  },
+  "errors": {
+    "Timeout": 912
+  }
+}
