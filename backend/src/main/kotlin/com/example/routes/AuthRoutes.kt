@@ -181,6 +181,23 @@ fun Route.authRoutes() {
             call.respond(HttpStatusCode.OK, TestEmailRs(success = error == null, error = error))
         }
         
+        // Диагностика конфигурации email
+        get("/mail-config") {
+            val brevoSet = System.getenv("BREVO_API_KEY")?.isNotBlank() == true
+            val smtpUser = System.getenv("SMTP_USER") ?: ""
+            val smtpHost = System.getenv("SMTP_HOST") ?: "not set"
+            call.respond(mapOf(
+                "brevo_configured" to brevoSet,
+                "smtp_host" to smtpHost,
+                "smtp_user_set" to smtpUser.isNotBlank(),
+                "will_use" to when {
+                    brevoSet -> "BREVO_API"
+                    smtpUser.isNotBlank() -> "SMTP"
+                    else -> "NONE"
+                }
+            ))
+        }
+        
         // ============ Мобильное приложение - сброс через 6-значный код ============
         
         // Запрос кода на email
