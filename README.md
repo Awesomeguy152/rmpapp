@@ -72,8 +72,7 @@
 - **База данных:** PostgreSQL + Exposed ORM
 - **Авторизация:** JWT токены
 - **Real-time:** WebSocket для мгновенных сообщений
-- **AI:** OpenAI API (GPT-4)
-- **Email:** SMTP (Яндекс) / Brevo API
+- **AI:** OpenAI AP
 
 ---
 
@@ -86,15 +85,12 @@ cd backend
 ./gradlew run
 ```
 
-Сервер запустится на `http://localhost:8080`
 
 ### Android приложение
 
 ```bash
 ./gradlew installDebug
 ```
-
-Или через Android Studio → Run
 
 ---
 
