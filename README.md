@@ -103,9 +103,8 @@ cd backend
 | Переменная            | Описание                      | Пример                                     |
 | --------------------- | ----------------------------- | ------------------------------------------ |
 | `DATABASE_URL`        | PostgreSQL URL                | `postgresql://user:pass@host/db`           |
-| `JWT_SECRET`          | Секрет для JWT                | `your-secret-key`                          |
+| `JWT_SECRET`          | Секрет для JWT                | `secret-key`                          |
 | `OPENAI_API_KEY`      | Ключ OpenAI                   | `sk-...`                                   |
-| `SMTP_HOST`           | SMTP сервер                   | `smtp.yandex.ru`                           |
 | `SMTP_PORT`           | Порт SMTP                     | `587`                                      |
 | `SMTP_USER`           | Email логин                   | `user@yandex.ru`                           |
 | `SMTP_PASS`           | Пароль/App password           | `xxxx`                                     |
@@ -113,7 +112,7 @@ cd backend
 | `CLICKHOUSE_ENABLED`  | Включить аналитику ClickHouse | `true`                                     |
 | `CLICKHOUSE_URL`      | ClickHouse JDBC URL           | `jdbc:clickhouse://localhost:8123/default` |
 | `CLICKHOUSE_USER`     | Пользователь ClickHouse       | `default`                                  |
-| `CLICKHOUSE_PASSWORD` | Пароль ClickHouse             | `(пусто по умолчанию)`                     |
+| `CLICKHOUSE_PASSWORD` | Пароль ClickHouse             | `password`                     |
 
 ---
 
