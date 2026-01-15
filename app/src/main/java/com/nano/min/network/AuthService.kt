@@ -144,16 +144,24 @@ class AuthService(val client: ApiClient) {
     
     /**
      * Запрос кода сброса пароля на email
+     * @return Pair<Boolean, String?> - (успех, сообщение об ошибке)
      */
-    suspend fun requestResetCode(email: String): Boolean = withContext(Dispatchers.IO) {
+    suspend fun requestResetCode(email: String): Pair<Boolean, String?> = withContext(Dispatchers.IO) {
         try {
             val response: HttpResponse = client.httpClient.post("${client.baseUrl}/api/auth/request-code") {
                 setBody(RequestCodeRequest(email))
             }
-            response.status == HttpStatusCode.OK
+            when (response.status) {
+                HttpStatusCode.OK -> Pair(true, null)
+                HttpStatusCode.ServiceUnavailable -> {
+                    val body: RequestCodeResponse = response.body()
+                    Pair(false, body.message ?: "Сервис временно недоступен")
+                }
+                else -> Pair(false, "Ошибка сервера: ${response.status}")
+            }
         } catch (e: Exception) {
-            e.printStackTrace()
-            false
+            android.util.Log.e("AuthService", "requestResetCode error: ${e.message}", e)
+            Pair(false, "Ошибка сети: ${e.message}")
         }
     }
     
@@ -268,6 +276,9 @@ data class DirectResetRequest(
 
 @Serializable
 data class RequestCodeRequest(val email: String)
+
+@Serializable
+data class RequestCodeResponse(val sent: Boolean, val message: String? = null)
 
 @Serializable
 data class VerifyCodeRequest(val email: String, val code: String)

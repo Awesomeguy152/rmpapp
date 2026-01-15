@@ -31,21 +31,84 @@ DATABASE_URL=${{Postgres.DATABASE_URL}}
 # OpenAI (для AI извлечения встреч)
 OPENAI_API_KEY=sk-...
 
-# SMTP (для сброса пароля - опционально)
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your-email@gmail.com
-SMTP_PASS=your-app-password
-SMTP_FROM=no-reply@yourdomain.com
-SMTP_STARTTLS=true
-RESET_LINK_BASE=https://your-app.up.railway.app
+# ============ EMAIL (для сброса пароля) ============
+# РЕКОМЕНДУЕТСЯ: Resend API (бесплатно 100 писем/день, мгновенная активация)
+RESEND_API_KEY=re_xxxxxxxx...
+
+# Альтернатива 1: Brevo API (бесплатно 300 писем/день, требует активации аккаунта)
+# BREVO_API_KEY=xkeysib-xxxxxxxx...
+
+# Альтернатива 2: SMTP (Gmail, Yandex, etc.)
+# SMTP_HOST=smtp.gmail.com
+# SMTP_PORT=587
+# SMTP_USER=your-email@gmail.com
+# SMTP_PASS=your-app-password
+# SMTP_FROM=no-reply@yourdomain.com
+# SMTP_STARTTLS=true
+
+# Принудительно использовать SMTP (игнорировать API провайдеры)
+# FORCE_SMTP=true
 
 # Firebase Push Notifications (опционально)
-# Загрузите firebase-service-account.json и укажите путь:
 # FIREBASE_SERVICE_ACCOUNT_PATH=/app/firebase-service-account.json
 ```
 
 Railway автоматически подставит URL базы данных.
+
+### 4.1 Настройка Resend (рекомендуется для email)
+
+**Resend** - современный сервис отправки email (100 писем/день бесплатно, мгновенная активация).
+
+1. Зарегистрируйтесь на [resend.com](https://resend.com/)
+2. Перейдите в **API Keys** и создайте новый ключ
+3. Скопируйте ключ и добавьте в Railway:
+   ```
+   RESEND_API_KEY=re_xxxxxxxxxxxxxxxx...
+   ```
+
+**Важно:** По умолчанию Resend использует `onboarding@resend.dev` как отправителя. Для своего домена нужно настроить DNS.
+
+### 4.2 Альтернатива: Brevo API
+
+**Brevo** (ранее Sendinblue) - бесплатно 300 писем/день, но требует активации аккаунта.
+
+1. Зарегистрируйтесь на [brevo.com](https://www.brevo.com/)
+2. Перейдите в **Settings** → **SMTP & API** → **API Keys**
+3. Создайте API ключ и добавьте в Railway:
+   ```
+   BREVO_API_KEY=xkeysib-xxxxxxxxxxxxxxxx...
+   ```
+4. **Важно:** Обратитесь в поддержку Brevo для активации аккаунта!
+
+### 4.3 Альтернатива: Gmail SMTP
+
+Для Gmail используйте App Password:
+
+1. Включите 2FA в Google аккаунте
+2. Создайте App Password: https://myaccount.google.com/apppasswords
+3. Добавьте в Railway:
+   ```
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_USER=your-email@gmail.com
+   SMTP_PASS=xxxx-xxxx-xxxx-xxxx
+   SMTP_STARTTLS=true
+   FORCE_SMTP=true
+   ```
+
+### 4.4 Проверка работы email
+
+После настройки проверьте работу email:
+
+```bash
+# Проверить конфигурацию
+curl https://your-app.up.railway.app/api/auth/mail-config
+
+# Отправить тестовое письмо
+curl -X POST https://your-app.up.railway.app/api/auth/test-email \
+  -H "Content-Type: application/json" \
+  -d '{"email": "your-email@example.com"}'
+```
 
 ### 5. Обнови Database.kt для Railway
 

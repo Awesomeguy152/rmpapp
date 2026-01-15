@@ -78,9 +78,11 @@ data class ResetWithCodeRs(val success: Boolean, val message: String? = null)
 
 @Serializable
 data class MailConfigRs(
+    val resendConfigured: Boolean,
     val brevoConfigured: Boolean,
     val smtpHost: String,
     val smtpUserSet: Boolean,
+    val forceSmtp: Boolean,
     val willUse: String
 )
 
@@ -191,18 +193,18 @@ fun Route.authRoutes() {
         
         // Диагностика конфигурации email
         get("/mail-config") {
+            val resendSet = System.getenv("RESEND_API_KEY")?.isNotBlank() == true
             val brevoSet = System.getenv("BREVO_API_KEY")?.isNotBlank() == true
             val smtpUser = System.getenv("SMTP_USER") ?: ""
             val smtpHost = System.getenv("SMTP_HOST") ?: "not set"
+            val forceSmtp = System.getenv("FORCE_SMTP")?.toBoolean() == true
             call.respond(MailConfigRs(
+                resendConfigured = resendSet,
                 brevoConfigured = brevoSet,
                 smtpHost = smtpHost,
                 smtpUserSet = smtpUser.isNotBlank(),
-                willUse = when {
-                    brevoSet -> "BREVO_API"
-                    smtpUser.isNotBlank() -> "SMTP"
-                    else -> "NONE"
-                }
+                forceSmtp = forceSmtp,
+                willUse = mail.getProvider()
             ))
         }
         
@@ -211,10 +213,21 @@ fun Route.authRoutes() {
         // Запрос кода на email
         post("/request-code") {
             val rq = call.receive<RequestCodeRq>()
+            
+            // Проверяем, настроен ли email провайдер
+            if (!mail.isConfigured()) {
+                call.application.log.error("❌ Email not configured! Cannot send reset code.")
+                call.respond(HttpStatusCode.ServiceUnavailable, RequestCodeRs(
+                    sent = false,
+                    message = "Сервис отправки email не настроен. Обратитесь к администратору."
+                ))
+                return@post
+            }
+            
             val sent = try {
                 reset.requestResetWithCode(rq.email.trim().lowercase())
             } catch (e: Exception) {
-                call.application.log.error("Failed to send reset code: ${e.message}")
+                call.application.log.error("Failed to send reset code: ${e.javaClass.simpleName}: ${e.message}")
                 false
             }
             // Всегда возвращаем успех для безопасности (не раскрываем существует ли email)

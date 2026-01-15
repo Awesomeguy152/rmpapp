@@ -66,7 +66,7 @@ class ForgotPasswordViewModel(
         
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
-            val success = authService.requestResetCode(email)
+            val (success, errorMessage) = authService.requestResetCode(email)
             _uiState.update {
                 if (success) {
                     it.copy(
@@ -74,8 +74,14 @@ class ForgotPasswordViewModel(
                         codeSent = true,
                         currentStep = ResetStep.CODE
                     )
+                } else if (errorMessage != null) {
+                    // Показываем реальную ошибку от сервера
+                    it.copy(
+                        isLoading = false,
+                        error = errorMessage
+                    )
                 } else {
-                    // Всегда показываем успех для безопасности
+                    // Для безопасности показываем успех даже если email не найден
                     it.copy(
                         isLoading = false,
                         codeSent = true,
