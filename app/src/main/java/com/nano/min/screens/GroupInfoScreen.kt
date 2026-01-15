@@ -116,7 +116,7 @@ fun GroupInfoScreen(
                             )
                             Text(
                                 text = conversation.title,
-                                style = MaterialTheme.typography.titleLarge,
+                                style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
